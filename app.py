@@ -3,7 +3,8 @@ import re
 import os
 import glob
 import datetime
-import locale
+import my_utils
+import statistics
 
 from collections import defaultdict, namedtuple
 from datetime import datetime
@@ -14,6 +15,28 @@ from PyQt6.QtGui import QColor, QPalette, QFont
 Trade = namedtuple("Trade", ["account_name", "order_id", "order_type", "quantity", "fill_price", "fill_time"])
 StatValue = namedtuple("Key", "Value")
 account_trading_stats = {}
+
+def calculate_size_metrics(trades_list):
+    """
+    Calculates the average, standard deviation, and maximum quantity from a list of Trade namedtuples.
+
+    Args:
+        trades_list: A list of Trade namedtuples.
+
+    Returns:
+        A dictionary containing the average, standard deviation, and maximum quantity, or
+        a dictionary with 0 for all values if the input list is empty.
+    """
+
+    if not trades_list:
+        return {"average": 0, "stdev": 0, "max": 0}
+
+    quantities = list(map(lambda trade: trade.quantity, trades_list))
+    average = sum(quantities) / len(quantities)
+    stdev = statistics.stdev(quantities) if len(quantities) > 1 else 0  # stdev requires at least 2 values
+    max_quantity = max(quantities)
+
+    return {"average": average, "stdev": stdev, "max": max_quantity}
 
 def get_fills(file_path, contract_symbol):
     fill_data = []
@@ -48,30 +71,6 @@ def get_fills(file_path, contract_symbol):
                 fill_data.append(Trade(account_name, order_id, order_type, quantity, fill_price, fill_time))
     return fill_data
 
-def find_key_with_lowest_order_id(data):
-    """
-    Finds the key in a defaultdict(list) that contains the Trade object with the
-    lowest order_id among all Trade objects in all lists.
-
-    Args:
-        data: The defaultdict(list) where values are lists of Trade objects.
-
-    Returns:
-        The key with the lowest order_id, or None if the defaultdict is empty.
-    """
-    lowest_order_id = float('inf')  # Initialize with positive infinity
-    key_with_lowest = None
-
-    for key, trades in data.items():
-        for trade in trades:
-            number_only_order_id = int(re.sub(r"[^0-9]", "", trade.order_id))
-            if number_only_order_id < lowest_order_id:
-            # if trade.order_id < lowest_order_id:
-                lowest_order_id = number_only_order_id
-                key_with_lowest = key
-
-    return key_with_lowest
-
 def parse_trading_log(fill_data, es_contract_value):
     if fill_data:
         # get list of AccountNames
@@ -93,10 +92,17 @@ def parse_trading_log(fill_data, es_contract_value):
             streak = 0
             best_streak = 0
             worst_streak = 0
-            # winning_long = 0
-            # long_profits = 0
-            
-            filtered_list = filter_namedtuples(fill_data, "account_name", account_name)
+            gains = 0
+            losses = 0
+            max_realized_drawdown = 0
+                        
+            filtered_list = my_utils.filter_namedtuples(fill_data, "account_name", account_name)
+
+            size_metrics = calculate_size_metrics(filtered_list)
+            avg_size = size_metrics["average"]
+            stdev_size = size_metrics["stdev"]
+            max_size = size_metrics["max"]
+            # print(f'average_quantities {average_quantities}')
 
             sorted_fill = sorted(filtered_list, key=lambda record: int(re.sub(r"[^0-9]", "", record.order_id)), reverse=False) # keeping only digits for SIM-ID orders
             # print(sorted_fill)
@@ -132,6 +138,12 @@ def parse_trading_log(fill_data, es_contract_value):
                     is_win = completed_profit_loss > 0
                     total_wins += is_win
 
+                    gains += completed_profit_loss if is_win else 0
+                    losses += 0 if is_win else abs(completed_profit_loss)
+
+                    max_realized_drawdown = min(total_profit_or_loss, max_realized_drawdown)
+
+
                     # if is_win:
                     #     winning_order_type = f'key= {find_key_with_lowest_order_id(grouped_trades)}'
                     #     winning_long += 1 if "BUY" in winning_order_type else 0 
@@ -159,14 +171,24 @@ def parse_trading_log(fill_data, es_contract_value):
                     grouped_trades.clear()
         
             win_rate = 0 if completed_trades == 0 else total_wins/completed_trades * 100
-            # long_win_rate = 0 if total_wins == 0 else winning_long/total_wins * 100
-            # short_win_rate = 0 if total_wins == 0 else (total_wins-winning_long)/total_wins * 100
-
+            profit_factor = 'max' if losses == 0 else f'{gains/losses:.01f}'
+            
             trading_stats = [
-                {"Trades (Win Rate)": f'{completed_trades} ({win_rate:.0f}%)'},
+                {"Trades": f'{completed_trades}'},
+                {"Win Rate": f'{win_rate:.0f}%'},
+                {"Profit Factor": f'{profit_factor}'},
+                {"": f''},
                 {"Streak": f'{streak:+}'},
-                {"Net P/L": f'${int(total_profit_or_loss):,}'},
                 {"Best / Worst Streak": f'{best_streak:+} / {worst_streak:+}'},
+                {"": f''},
+                {"Net P/L": f'${int(total_profit_or_loss):,}'},
+                {"Max Drawdown": f'${int(max_realized_drawdown):,}'},
+                {"": f''},
+                # {"Size Avg, Std, Max": f'{int(avg_size)}, {stdev_size:0.1f}, {int(max_size)}'},
+                {"Size Avg": f'{int(avg_size)}'},
+                {"Size Stdev": f'{stdev_size:.02f}'},
+                {"Size Max": f'{int(max_size)}'},
+                {"": f''},
                 {"Long / Short Trades": f'{total_buys} / {total_sells}'},
                 {"Contracts": f'{total_buy_contracts} / {total_sell_contracts}'},
                 # {"Account": f'{account_name}'}
@@ -176,26 +198,6 @@ def parse_trading_log(fill_data, es_contract_value):
             account_trading_stats[account_name] = trading_stats
 
     return account_trading_stats
-
-def filter_namedtuples(list_of_namedtuples, attribute_name, target_value):
-  """
-  Filters a list of namedtuples based on the value of a specific attribute.
-
-  Args:
-    list_of_namedtuples: A list of namedtuples.
-    attribute_name: The name of the attribute to filter by (as a string).
-    target_value: The value to filter for.
-
-  Returns:
-    A new list containing only the namedtuples where the specified
-    attribute's value matches the target_value.
-  """
-  filtered_list = [
-      item
-      for item in list_of_namedtuples
-      if getattr(item, attribute_name) == target_value
-  ]
-  return filtered_list
 
 def create_stats_window_pyqt6(account_trading_stats):
     """Creates a semi-transparent, always-on-top window with trading stats using PyQt6."""
@@ -249,12 +251,16 @@ def create_stats_window_pyqt6(account_trading_stats):
     refresh_button = QPushButton("Refresh")
     refresh_button.clicked.connect(refresh_data)
 
+    # Close button
+    close_button = QPushButton("Close")
+    close_button.clicked.connect(app.quit) #close the app.
+    
     def dropdown_changed(selected_key):
         """Handles dropdown selection change."""
         # Clear previous stats
         for i in reversed(range(layout.count())):
             item = layout.itemAt(i)
-            if item and item.widget() and item.widget() != dropdown and item.widget() != dummy_label and item.widget() != refresh_button:
+            if item and item.widget() and item.widget() != dropdown and item.widget() != dummy_label and item.widget() != refresh_button and item.widget() != close_button:
                 item.widget().deleteLater()
                 layout.removeItem(item)
 
@@ -263,26 +269,30 @@ def create_stats_window_pyqt6(account_trading_stats):
         row_index = 2  # Start after the dropdown and dummy row.
         for stat in selected_stats:
             for key, value in stat.items():
-                if key.lower() == "win_rate":
-                    value = f'{value:.2f}%'
+                if isinstance(value, str) and not value: #check for empty string value.
+                    layout.setRowMinimumHeight(row_index, 20)
+                    row_index += 1
+                else:
+                    key_label = QLabel(key)
+                    key_label.setStyleSheet("border: 1px solid black; color: white;")
+                    font = QFont()
+                    font.setPointSize(27)
+                    key_label.setFont(font)
+                    layout.addWidget(key_label, row_index, 0)
 
-                key_label = QLabel(key)
-                key_label.setStyleSheet("border: 1px solid black; color: white;")
-                font = QFont()
-                font.setPointSize(27)
-                key_label.setFont(font)
-                layout.addWidget(key_label, row_index, 0)
+                    value_label = QLabel(str(value))
+                    value_label.setStyleSheet("border: 1px solid black; color: red;")
+                    font = QFont()
+                    font.setPointSize(27)
+                    value_label.setFont(font)
+                    layout.addWidget(value_label, row_index, 1)
 
-                value_label = QLabel(str(value))
-                value_label.setStyleSheet("border: 1px solid black; color: white;")
-                font = QFont()
-                font.setPointSize(27)
-                value_label.setFont(font)
-                layout.addWidget(value_label, row_index, 1)
+                    row_index += 1
 
-                row_index += 1
-
+        # Place refresh button at the bottom
         layout.addWidget(refresh_button, row_index, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(close_button, row_index +1, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
+        window.adjustSize() #resize the window after dropdown change.
 
     dropdown.currentTextChanged.connect(dropdown_changed)
 
@@ -291,10 +301,10 @@ def create_stats_window_pyqt6(account_trading_stats):
 
     window.setLayout(layout)
 
-    # Reduce window width by 50%
-    window_width = 375
-    window_height = 500
-    window.resize(window_width, window_height)
+    # # Reduce window width by 50%
+    # window_width = 375
+    # window_height = 1000
+    # window.resize(window_width, window_height)
 
     window.show()
 
@@ -357,20 +367,21 @@ if __name__ == "__main__":
 # output (Mar-26 215623).txt
 
 # TODO
-# commit to Github
-# long vs short profitable (whats the right metric) - stands out as one is working we're on it or one is not working and we're against it
+## metrics
+# gain - avg (size, duration), max (size, duration)
+# loss - avg (size, duration), max (size, duration)
+# average time between trades
 # time since last first entry
 # time since last exit
 # time since last order
-# color or alerts
+
+## more features
+# color
+# directional losing streak (N, direction) vs (N, chop)
+# alerts
 # handle the ALL stats case
 # dropdown selection for which file
 # overlay even to fullscreen window
 
-# expectancy (if long versus short working)
-# profit factor (profit/loss)
-# max gain, max loss + position sizes
-# avg gain, avg loss
-# average size
-# average duration
-# average time between trades
+## improvements
+# calculate average through the loop instead of lambda
