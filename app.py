@@ -71,7 +71,7 @@ def get_fills(file_path, contract_symbol):
                 fill_data.append(Trade(account_name, order_id, order_type, quantity, fill_price, fill_time))
     return fill_data
 
-def parse_trading_log(fill_data, es_contract_value):
+def compute_trade_stats(fill_data, es_contract_value):
     if fill_data:
         # get list of AccountNames
         unique_account_names = set()
@@ -143,14 +143,6 @@ def parse_trading_log(fill_data, es_contract_value):
 
                     max_realized_drawdown = min(total_profit_or_loss, max_realized_drawdown)
 
-
-                    # if is_win:
-                    #     winning_order_type = f'key= {find_key_with_lowest_order_id(grouped_trades)}'
-                    #     winning_long += 1 if "BUY" in winning_order_type else 0 
-                    #     long_profits += completed_profit_loss if "BUY" in winning_order_type else 0 
-
-                    # print(f' win ' if is_win else 'loss')
-
                     if is_last_trade_win:
                         if is_win:
                             streak += 1
@@ -171,30 +163,36 @@ def parse_trading_log(fill_data, es_contract_value):
                     grouped_trades.clear()
         
             win_rate = 0 if completed_trades == 0 else total_wins/completed_trades * 100
-            profit_factor = 'max' if losses == 0 else f'{gains/losses:.01f}'
+            profit_factor = 2 if losses == 0 else gains/losses
             
+            overtrade_color = "red" if completed_trades > 20 else "orange" if completed_trades > 10 else "white"
+            winrate_color = "red" if win_rate < 20 else "orange" if win_rate < 40 else "white"
+            profitfactor_color = "red" if profit_factor < 0.5 else "orange" if profit_factor < 1 else "white"
+            losing_streak_color = "red" if streak < -2 else "white"
+            pnl_color = "red" if total_profit_or_loss < -1000 else "white"
+
             trading_stats = [
-                {"Trades": f'{completed_trades}'},
-                {"Win Rate": f'{win_rate:.0f}%'},
-                {"Profit Factor": f'{profit_factor}'},
-                {"": f''},
-                {"Streak": f'{streak:+}'},
-                {"Best / Worst Streak": f'{best_streak:+} / {worst_streak:+}'},
-                {"": f''},
-                {"Net P/L": f'${int(total_profit_or_loss):,}'},
-                {"Max Drawdown": f'${int(max_realized_drawdown):,}'},
-                {"": f''},
-                # {"Size Avg, Std, Max": f'{int(avg_size)}, {stdev_size:0.1f}, {int(max_size)}'},
-                {"Size Avg": f'{int(avg_size)}'},
-                {"Size Stdev": f'{stdev_size:.02f}'},
-                {"Size Max": f'{int(max_size)}'},
-                {"": f''},
-                {"Long / Short Trades": f'{total_buys} / {total_sells}'},
-                {"Contracts": f'{total_buy_contracts} / {total_sell_contracts}'},
+                {"Trades": [f'{completed_trades}', f'{overtrade_color}']},
+                {"Win Rate": [f'{win_rate:.0f}%', f'{winrate_color}']},
+                {"Profit Factor": [f'{profit_factor:.01f}', f'{profitfactor_color}']},
+                {"": [f'']},
+                {"Streak": [f'{streak:+}', f'{losing_streak_color}']},
+                {"Best / Worst Streak": [f'{best_streak:+} / {worst_streak:+}']},
+                {"": [f'']},
+                {"Net P/L": [f'${int(total_profit_or_loss):,}', f'{pnl_color}']},
+                {"Max Drawdown": [f'${int(max_realized_drawdown):,}']},
+                {"": [f'']},
+                {"Size Avg": [f'{int(avg_size)}']},
+                {"Size Stdev": [f'{stdev_size:.02f}']},
+                {"Size Max": [f'{int(max_size)}']},
+                {"": [f'']},
+                {"Long / Short Trades": [f'{total_buys} / {total_sells}']},
+                {"Contracts": [f'{total_buy_contracts} / {total_sell_contracts}']},
                 # {"Account": f'{account_name}'}
             ]
 
             # print(trading_stats)
+
             account_trading_stats[account_name] = trading_stats
 
     return account_trading_stats
@@ -229,7 +227,7 @@ def create_stats_window_pyqt6(account_trading_stats):
     dropdown.setFont(dropdown_font)
 
     # Set white background and black text for dropdown
-    dropdown.setStyleSheet("background-color: white; color: black;")
+    dropdown.setStyleSheet("background-color: gray; color: black;")
 
     layout.addWidget(dropdown, 0, 0, 1, 2)
 
@@ -246,6 +244,7 @@ def create_stats_window_pyqt6(account_trading_stats):
         fill_data = get_fills(filepath, contract_symbol)
         account_trading_stats = parse_trading_log(fill_data, contract_value)
         dropdown_changed(selected_key) #re-render with the updated data.
+        window.adjustSize() #resize window after refresh.
 
     # Refresh button
     refresh_button = QPushButton("Refresh")
@@ -268,8 +267,8 @@ def create_stats_window_pyqt6(account_trading_stats):
         selected_stats = account_trading_stats[selected_key]
         row_index = 2  # Start after the dropdown and dummy row.
         for stat in selected_stats:
-            for key, value in stat.items():
-                if isinstance(value, str) and not value: #check for empty string value.
+            for key, value_color in stat.items():
+                if isinstance(value_color[0], str) and not value_color[0]: #check for empty string value.
                     layout.setRowMinimumHeight(row_index, 20)
                     row_index += 1
                 else:
@@ -280,8 +279,9 @@ def create_stats_window_pyqt6(account_trading_stats):
                     key_label.setFont(font)
                     layout.addWidget(key_label, row_index, 0)
 
-                    value_label = QLabel(str(value))
-                    value_label.setStyleSheet("border: 1px solid black; color: red;")
+                    value_label = QLabel(str(value_color[0])) # value is first item in list.
+                    color = value_color[1] if len(value_color) > 1 else "white" # default to white if color is missing.
+                    value_label.setStyleSheet(f"border: 1px solid black; color: {color};")
                     font = QFont()
                     font.setPointSize(27)
                     value_label.setFont(font)
@@ -358,7 +358,7 @@ if __name__ == "__main__":
     filepath = get_latest_output_file(directory_path)
     # print(filepath)
     fill_data = get_fills(filepath, contract_symbol)
-    ats = parse_trading_log(fill_data, contract_value)
+    ats = compute_trade_stats(fill_data, contract_value)
     create_stats_window_pyqt6(ats)
 
 # filepath = '/Users/ryangaraygay/Library/MotiveWave/output/output (Mar-26 215623).txt'
@@ -367,18 +367,19 @@ if __name__ == "__main__":
 # output (Mar-26 215623).txt
 
 # TODO
-## metrics
-# gain - avg (size, duration), max (size, duration)
+## must have metrics
 # loss - avg (size, duration), max (size, duration)
+#   losses with large size should be red flagged
+#   losses with low duration should be red flagged
+## optional metrics (only if not computational expensive and have time to develop)
 # average time between trades
+#   losses spaced too close (less than avg gain) should be red flagged
 # time since last first entry
-# time since last exit
-# time since last order
+#   open trades > 10 should be orange flagged
 
 ## more features
-# color
 # directional losing streak (N, direction) vs (N, chop)
-# alerts
+# alerts - can it trigger keyboard press or call hammerspoon?
 # handle the ALL stats case
 # dropdown selection for which file
 # overlay even to fullscreen window
