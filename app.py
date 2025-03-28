@@ -4,7 +4,7 @@ import os
 import glob
 import datetime
 import my_utils
-import statistics
+from streak import Streak  # Import the Streak class
 
 from collections import defaultdict, namedtuple
 from datetime import datetime
@@ -33,7 +33,7 @@ def get_fills(file_path, contract_symbol):
             match = re.search(pattern, line)
             if match:
             # if match and match.group(2) == "simulated":
-                order_id = match.group(1)
+                order_id = int(re.sub(r"[^0-9]", "", match.group(1))) #SIM-dd (we need this for ordering since fill_time has no second value and so inaccurate)
                 account_name = match.group(2)
                 order_type = match.group(3)
                 quantity = float(match.group(4))
@@ -75,19 +75,17 @@ def compute_trade_stats(fill_data, es_contract_value):
             total_sell_contracts = 0
             total_profit_or_loss = 0.0
             total_wins = 0
-            is_last_trade_win = False
-            streak = 0
-            best_streak = 0
-            worst_streak = 0
             gains = 0
             losses = 0
             max_realized_drawdown = 0
             loss_max_size = 0 # not individual orders but within a trade (group)
             loss_max_value = 0 # not individual orders but within a trade (group)
 
+            streak_tracker = Streak()
+
             filtered_list = my_utils.filter_namedtuples(fill_data, "account_name", account_name)
 
-            sorted_fill = sorted(filtered_list, key=lambda record: int(re.sub(r"[^0-9]", "", record.order_id)), reverse=False) # keeping only digits for SIM-ID orders
+            sorted_fill = sorted(filtered_list, key=lambda record: record.order_id, reverse=False) # keeping only digits for SIM-ID orders
             # print(sorted_fill)
 
             min_time = datetime.max
@@ -139,21 +137,7 @@ def compute_trade_stats(fill_data, es_contract_value):
                         loss_max_size = max(loss_max_size, buy_qty) # can be sell_qty since completed trades have equal sell and buy qty
                         loss_max_value = min(loss_max_value, completed_profit_loss)
 
-                    if is_last_trade_win:
-                        if is_win:
-                            streak += 1
-                        else:
-                            streak = -1
-                    else:
-                        if is_win:
-                            streak = 1
-                        else:
-                            streak -= 1
-
-                    is_last_trade_win = is_win
-
-                    best_streak = max(streak, best_streak)
-                    worst_streak = min(streak, worst_streak)
+                    streak_tracker.process(is_win)
 
                     duration = max_time - min_time
                     loss_duration.append(duration)
@@ -169,7 +153,7 @@ def compute_trade_stats(fill_data, es_contract_value):
             overtrade_color = Color.CRITICAL if completed_trades > 20 else Color.WARNING if completed_trades > 10 else Color.DEFAULT
             winrate_color = Color.CRITICAL if win_rate < 20 else Color.WARNING if win_rate < 40 else Color.DEFAULT
             profitfactor_color = Color.CRITICAL if profit_factor < 0.5 else Color.WARNING if profit_factor < 1 else Color.DEFAULT
-            losing_streak_color = Color.CRITICAL if streak <= -5 else Color.WARNING if streak <=-2 else Color.DEFAULT
+            losing_streak_color = Color.CRITICAL if streak_tracker.streak <= -5 else Color.WARNING if streak_tracker.streak <=-2 else Color.DEFAULT
             pnl_color = Color.CRITICAL if total_profit_or_loss < -1000 else Color.DEFAULT
             max_drawdown_color = Color.WARNING if max_realized_drawdown < -1000 else Color.DEFAULT
             max_loss_color = Color.WARNING if loss_max_value <= -900 else Color.DEFAULT
@@ -186,8 +170,8 @@ def compute_trade_stats(fill_data, es_contract_value):
                 {"Profit Factor": [f'{profit_factor:.01f}', f'{profitfactor_color}']},
                 {"Long / Short Trades": [f'{total_buys} / {total_sells}']},
                 {"": [f'']},
-                {"Streak": [f'{streak:+}', f'{losing_streak_color}']},
-                {"Best / Worst Streak": [f'{best_streak:+} / {worst_streak:+}']},
+                {"Streak": [f'{streak_tracker.streak:+}', f'{losing_streak_color}']},
+                {"Best / Worst Streak": [f'{streak_tracker.best_streak:+} / {streak_tracker.worst_streak:+}']},
                 {"": [f'']},
                 {"Net P/L": [f'${int(total_profit_or_loss):,}', f'{pnl_color}']},
                 {"Max Drawdown": [f'${int(max_realized_drawdown):,}', f'{max_drawdown_color}']},
