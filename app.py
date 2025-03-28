@@ -11,6 +11,7 @@ from datetime import datetime
 from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QGridLayout, QPushButton, QComboBox
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QColor, QPalette, QFont
+from pynput.keyboard import Key, Controller
 
 Trade = namedtuple("Trade", ["account_name", "order_id", "order_type", "quantity", "fill_price", "fill_time"])
 StatValue = namedtuple("Key", "Value")
@@ -197,78 +198,73 @@ def compute_trade_stats(fill_data, es_contract_value):
 
     return account_trading_stats
 
-def create_stats_window_pyqt6(account_trading_stats):
-    """Creates a semi-transparent, always-on-top window with trading stats using PyQt6."""
+def pause_trading():
+    """Pause trading functionality (empty implementation)."""
+    keyboard = Controller()
 
+    keyboard.press(Key.cmd)
+    keyboard.press(Key.alt)
+    keyboard.press("d")
+
+    keyboard.release("d")
+    keyboard.release(Key.alt)
+    keyboard.release(Key.cmd)
+    
+def create_stats_window_pyqt6(account_trading_stats):
     app = QApplication(sys.argv)
     window = QWidget()
     window.setWindowTitle("Trading Statistics")
-
-    # Make the window semi-transparent using a background color with alpha
     window.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-    window.setStyleSheet("background-color: rgba(0, 0, 0, 20);")  # Increased transparency (lower alpha)
-
-    # Make the window always on top
+    window.setStyleSheet("background-color: rgba(0, 0, 0, 20);")
     window.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint)
-
-    # Set window opacity
     window.setWindowOpacity(0.85)
 
-    layout = QGridLayout()
+    layout = QGridLayout(window)  # Set layout on the window directly
 
-    # Dropdown (ComboBox)
     dropdown = QComboBox()
-    sorted_keys = sorted(list(account_trading_stats.keys()))  # Sort the keys
-    dropdown.addItems(sorted_keys)  # Fill dropdown with sorted keys
-
-    # Increase font size for dropdown items
+    sorted_keys = sorted(list(account_trading_stats.keys()))
+    dropdown.addItems(sorted_keys)
     dropdown_font = QFont()
-    dropdown_font.setPointSize(27)  # Match table text size
+    dropdown_font.setPointSize(27)
     dropdown.setFont(dropdown_font)
-
-    # Set white background and black text for dropdown
     dropdown.setStyleSheet("background-color: gray; color: black;")
-
     layout.addWidget(dropdown, 0, 0, 1, 2)
 
-    # Set fixed spacer height
     spacer_height = 30
-
-    # Add dummy empty row to create space
-    dummy_label = QLabel("")  # Create an empty label
+    dummy_label = QLabel("")
     layout.addWidget(dummy_label, 1, 0, 1, 2)
     layout.setRowMinimumHeight(1, spacer_height)
+
+    refresh_button = QPushButton("Refresh")
+    pause_button = QPushButton("Pause Trading")
+    close_button = QPushButton("Close")
 
     def refresh_data():
         selected_key = dropdown.currentText()
         fill_data = get_fills(filepath, contract_symbol)
-        account_trading_stats = parse_trading_log(fill_data, contract_value)
+        account_trading_stats = compute_trade_stats(fill_data, contract_value)
         dropdown_changed(selected_key) #re-render with the updated data.
-        window.adjustSize() #resize window after refresh.
+        window.adjustSize()
 
-    # Refresh button
-    refresh_button = QPushButton("Refresh")
+    def close_app():
+        app.quit()
+
     refresh_button.clicked.connect(refresh_data)
+    pause_button.clicked.connect(pause_trading)
+    close_button.clicked.connect(close_app)
 
-    # Close button
-    close_button = QPushButton("Close")
-    close_button.clicked.connect(app.quit) #close the app.
-    
     def dropdown_changed(selected_key):
-        """Handles dropdown selection change."""
-        # Clear previous stats
         for i in reversed(range(layout.count())):
             item = layout.itemAt(i)
-            if item and item.widget() and item.widget() != dropdown and item.widget() != dummy_label and item.widget() != refresh_button and item.widget() != close_button:
+            if item and item.widget() and item.widget() not in (dropdown, dummy_label, refresh_button, pause_button, close_button):
                 item.widget().deleteLater()
                 layout.removeItem(item)
 
-        # Display stats for selected key
         selected_stats = account_trading_stats[selected_key]
-        row_index = 2  # Start after the dropdown and dummy row.
+        row_index = 2
         for stat in selected_stats:
             for key, value_color in stat.items():
-                if isinstance(value_color[0], str) and not value_color[0]: #check for empty string value.
+                if isinstance(value_color[0], str) and not value_color[0]:
                     layout.setRowMinimumHeight(row_index, 20)
                     row_index += 1
                 else:
@@ -279,39 +275,29 @@ def create_stats_window_pyqt6(account_trading_stats):
                     key_label.setFont(font)
                     layout.addWidget(key_label, row_index, 0)
 
-                    value_label = QLabel(str(value_color[0])) # value is first item in list.
-                    color = value_color[1] if len(value_color) > 1 else "white" # default to white if color is missing.
+                    value_label = QLabel(str(value_color[0]))
+                    color = value_color[1] if len(value_color) > 1 else "white"
                     value_label.setStyleSheet(f"border: 1px solid black; color: {color};")
                     font = QFont()
                     font.setPointSize(27)
                     value_label.setFont(font)
                     layout.addWidget(value_label, row_index, 1)
-
                     row_index += 1
 
-        # Place refresh button at the bottom
         layout.addWidget(refresh_button, row_index, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(close_button, row_index +1, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
-        window.adjustSize() #resize the window after dropdown change.
+        layout.addWidget(pause_button, row_index + 1, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(close_button, row_index + 2, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
+        window.adjustSize()
 
     dropdown.currentTextChanged.connect(dropdown_changed)
-
-    # Call dropdown_changed before setting the layout
     dropdown_changed(sorted_keys[0])
 
-    window.setLayout(layout)
-
-    # # Reduce window width by 50%
-    # window_width = 375
-    # window_height = 1000
-    # window.resize(window_width, window_height)
-
+    window.adjustSize()
     window.show()
 
-    # Timer to auto refresh
     timer = QTimer()
     timer.timeout.connect(refresh_data)
-    timer.start(auto_refresh_ms)
+    timer.start(auto_refresh_ms) #use variable.
 
     sys.exit(app.exec())
 
@@ -359,11 +345,21 @@ if __name__ == "__main__":
     # print(filepath)
     fill_data = get_fills(filepath, contract_symbol)
     ats = compute_trade_stats(fill_data, contract_value)
-    create_stats_window_pyqt6(ats)
+    if len(ats) > 0:
+        create_stats_window_pyqt6(ats)
+    else:
+        print('no fills found. loading test file')
+        filepath = "/Users/ryangaraygay/Library/MotiveWave/output/output (Mar-27 062404).txt"
+        fill_data = get_fills(filepath, contract_symbol)
+        ats = compute_trade_stats(fill_data, contract_value)
+        if len(ats) > 0:
+            create_stats_window_pyqt6(ats)
+        else:
+            print('test file did not contain any fills either')
 
 # filepath = '/Users/ryangaraygay/Library/MotiveWave/output/output (Mar-26 215623).txt'
-# file_path = "/Users/ryangaraygay/Library/MotiveWave/output/output (Mar-26 062616).txt"
-# file_path = "/Users/ryangaraygay/Library/MotiveWave/output/output (Mar-26 105455).txt"
+# filepath = "/Users/ryangaraygay/Library/MotiveWave/output/output (Mar-26 062616).txt"
+# filepath = "/Users/ryangaraygay/Library/MotiveWave/output/output (Mar-26 105455).txt"
 # output (Mar-26 215623).txt
 
 # TODO
@@ -371,6 +367,7 @@ if __name__ == "__main__":
 # loss - avg (size, duration), max (size, duration)
 #   losses with large size should be red flagged
 #   losses with low duration should be red flagged
+# directional losing streak (N, direction) vs (N, chop)
 ## optional metrics (only if not computational expensive and have time to develop)
 # average time between trades
 #   losses spaced too close (less than avg gain) should be red flagged
@@ -378,8 +375,11 @@ if __name__ == "__main__":
 #   open trades > 10 should be orange flagged
 
 ## more features
-# directional losing streak (N, direction) vs (N, chop)
-# alerts - can it trigger keyboard press or call hammerspoon?
+# alert
+#   pause trading when selected account has losing streak
+#   but first think through how it will work
+#   ensure it does not disable on every refresh of tradestats
+#   and after a break, we still have a losing streak - so do we snooze disable for N minutes?
 # handle the ALL stats case
 # dropdown selection for which file
 # overlay even to fullscreen window
