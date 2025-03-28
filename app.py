@@ -12,32 +12,13 @@ from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QGridLayout, QPushBut
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QColor, QPalette, QFont
 from pynput.keyboard import Key, Controller
+from datetime import timedelta
 
 Trade = namedtuple("Trade", ["account_name", "order_id", "order_type", "quantity", "fill_price", "fill_time"])
 StatValue = namedtuple("Key", "Value")
+
 account_trading_stats = {}
-
-def calculate_size_metrics(trades_list):
-    """
-    Calculates the average, standard deviation, and maximum quantity from a list of Trade namedtuples.
-
-    Args:
-        trades_list: A list of Trade namedtuples.
-
-    Returns:
-        A dictionary containing the average, standard deviation, and maximum quantity, or
-        a dictionary with 0 for all values if the input list is empty.
-    """
-
-    if not trades_list:
-        return {"average": 0, "stdev": 0, "max": 0}
-
-    quantities = list(map(lambda trade: trade.quantity, trades_list))
-    average = sum(quantities) / len(quantities)
-    stdev = statistics.stdev(quantities) if len(quantities) > 1 else 0  # stdev requires at least 2 values
-    max_quantity = max(quantities)
-
-    return {"average": average, "stdev": stdev, "max": max_quantity}
+existing_fill_count = 0
 
 def get_fills(file_path, contract_symbol):
     fill_data = []
@@ -96,17 +77,17 @@ def compute_trade_stats(fill_data, es_contract_value):
             gains = 0
             losses = 0
             max_realized_drawdown = 0
-                        
-            filtered_list = my_utils.filter_namedtuples(fill_data, "account_name", account_name)
+            loss_max_size = 0 # not individual orders but within a trade (group)
+            loss_max_value = 0 # not individual orders but within a trade (group)
 
-            size_metrics = calculate_size_metrics(filtered_list)
-            avg_size = size_metrics["average"]
-            stdev_size = size_metrics["stdev"]
-            max_size = size_metrics["max"]
-            # print(f'average_quantities {average_quantities}')
+            filtered_list = my_utils.filter_namedtuples(fill_data, "account_name", account_name)
 
             sorted_fill = sorted(filtered_list, key=lambda record: int(re.sub(r"[^0-9]", "", record.order_id)), reverse=False) # keeping only digits for SIM-ID orders
             # print(sorted_fill)
+
+            min_time = datetime.max
+            max_time = datetime.min
+            loss_duration = list()
 
             for fill in sorted_fill:
                 grouped_trades[fill.order_type].append(fill)
@@ -127,12 +108,17 @@ def compute_trade_stats(fill_data, es_contract_value):
                 for trade in grouped_trades["Filled BUY"]:
                     buy_qty += trade.quantity
                     buy_total_value += trade.quantity * trade.fill_price
+                    min_time = min(min_time, trade.fill_time)
+                    max_time = max(max_time, trade.fill_time)
 
                 for trade in grouped_trades["Filled SELL"]:
                     sell_qty += trade.quantity
                     sell_total_value += trade.quantity * trade.fill_price
+                    min_time = min(min_time, trade.fill_time)
+                    max_time = max(max_time, trade.fill_time)
 
-                if len(grouped_trades) >=2 and (buy_qty - sell_qty) == 0:
+                position_size = buy_qty - sell_qty
+                if len(grouped_trades) >=2 and position_size == 0:
                     completed_trades += 1
                     completed_profit_loss = (sell_total_value - buy_total_value) * es_contract_value
                     total_profit_or_loss += completed_profit_loss
@@ -143,6 +129,10 @@ def compute_trade_stats(fill_data, es_contract_value):
                     losses += 0 if is_win else abs(completed_profit_loss)
 
                     max_realized_drawdown = min(total_profit_or_loss, max_realized_drawdown)
+                    
+                    if not is_win:
+                        loss_max_size = max(loss_max_size, buy_qty) # can be sell_qty since completed trades have equal sell and buy qty
+                        loss_max_value = min(loss_max_value, completed_profit_loss)
 
                     if is_last_trade_win:
                         if is_win:
@@ -160,8 +150,13 @@ def compute_trade_stats(fill_data, es_contract_value):
                     best_streak = max(streak, best_streak)
                     worst_streak = min(streak, worst_streak)
 
+                    duration = max_time - min_time
+                    loss_duration.append(duration)
+
                     # print('trade complete')
                     grouped_trades.clear()
+                    min_time = datetime.max
+                    max_time = datetime.min
         
             win_rate = 0 if completed_trades == 0 else total_wins/completed_trades * 100
             profit_factor = 2 if losses == 0 else gains/losses
@@ -171,24 +166,36 @@ def compute_trade_stats(fill_data, es_contract_value):
             profitfactor_color = "red" if profit_factor < 0.5 else "orange" if profit_factor < 1 else "white"
             losing_streak_color = "red" if streak < -2 else "white"
             pnl_color = "red" if total_profit_or_loss < -1000 else "white"
+            max_drawdown_color = "orange" if max_realized_drawdown < -1000 else "white"
+            max_loss_color = "orange" if loss_max_value <= -900 else "white"
+            open_size_color = "orange" if abs(position_size) > 3 else "white"
+            loss_max_size_color = "red" if loss_max_size >= 10 else "orange" if loss_max_size >= 6 else "white"
+
+            loss_avg_secs = my_utils.average_timedelta(loss_duration)
+            loss_max_secs = my_utils.max_timedelta(loss_duration)
+            loss_max_secs_color = "orange" if loss_max_secs.total_seconds() > 300 else "white"
 
             trading_stats = [
                 {"Trades": [f'{completed_trades}', f'{overtrade_color}']},
                 {"Win Rate": [f'{win_rate:.0f}%', f'{winrate_color}']},
                 {"Profit Factor": [f'{profit_factor:.01f}', f'{profitfactor_color}']},
+                {"Long / Short Trades": [f'{total_buys} / {total_sells}']},
                 {"": [f'']},
                 {"Streak": [f'{streak:+}', f'{losing_streak_color}']},
                 {"Best / Worst Streak": [f'{best_streak:+} / {worst_streak:+}']},
                 {"": [f'']},
                 {"Net P/L": [f'${int(total_profit_or_loss):,}', f'{pnl_color}']},
-                {"Max Drawdown": [f'${int(max_realized_drawdown):,}']},
+                {"Max Drawdown": [f'${int(max_realized_drawdown):,}', f'{max_drawdown_color}']},
+                {"Max Loss": [f'${int(loss_max_value):,}', f'{max_loss_color}']},
                 {"": [f'']},
-                {"Size Avg": [f'{int(avg_size)}']},
-                {"Size Stdev": [f'{stdev_size:.02f}']},
-                {"Size Max": [f'{int(max_size)}']},
+                {"Open Size": [f'{int(position_size)}', f'{open_size_color}']},
+                {"Max Loss Size": [f'{int(loss_max_size)}', f'{loss_max_size_color}']},
                 {"": [f'']},
-                {"Long / Short Trades": [f'{total_buys} / {total_sells}']},
+                {"Loss Duration Avg": [f'{my_utils.format_timedelta(loss_avg_secs)}']},
+                {"Loss Duration Max": [f'{my_utils.format_timedelta(loss_max_secs)}', f'{loss_max_secs_color}']},
+                {"": [f'']},
                 {"Contracts": [f'{total_buy_contracts} / {total_sell_contracts}']},
+                {"Last Updated": [f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}']},
                 # {"Account": f'{account_name}'}
             ]
 
@@ -217,7 +224,7 @@ def create_stats_window_pyqt6(account_trading_stats):
     window.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
     window.setStyleSheet("background-color: rgba(0, 0, 0, 20);")
     window.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint)
-    window.setWindowOpacity(0.85)
+    window.setWindowOpacity(opacity)
 
     layout = QGridLayout(window)  # Set layout on the window directly
 
@@ -240,11 +247,15 @@ def create_stats_window_pyqt6(account_trading_stats):
     close_button = QPushButton("Close")
 
     def refresh_data():
+        refresh_button.setText(f'Refresh [{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}]')
         selected_key = dropdown.currentText()
         fill_data = get_fills(filepath, contract_symbol)
-        account_trading_stats = compute_trade_stats(fill_data, contract_value)
-        dropdown_changed(selected_key) #re-render with the updated data.
-        window.adjustSize()
+        current_fill_count = len(fill_data)
+        global existing_fill_count
+        if current_fill_count != existing_fill_count:
+            account_trading_stats = compute_trade_stats(fill_data, contract_value)
+            dropdown_changed(selected_key) #re-render with the updated data.
+            existing_fill_count = current_fill_count
 
     def close_app():
         app.quit()
@@ -283,16 +294,16 @@ def create_stats_window_pyqt6(account_trading_stats):
                     value_label.setFont(font)
                     layout.addWidget(value_label, row_index, 1)
                     row_index += 1
-
-        layout.addWidget(refresh_button, row_index, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(pause_button, row_index + 1, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(close_button, row_index + 2, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
-        window.adjustSize()
+        return row_index
+    
 
     dropdown.currentTextChanged.connect(dropdown_changed)
-    dropdown_changed(sorted_keys[0])
-
+    ri = dropdown_changed(sorted_keys[0])
+    layout.addWidget(refresh_button, ri, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
+    layout.addWidget(pause_button, ri + 1, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
+    layout.addWidget(close_button, ri + 2, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
     window.adjustSize()
+    
     window.show()
 
     timer = QTimer()
@@ -338,10 +349,12 @@ filepath = ""
 contract_symbol = "ESM5"
 contract_value = 50
 directory_path = "/Users/ryangaraygay/Library/MotiveWave/output/"  # Replace with your directory path
-auto_refresh_ms = 60000
+auto_refresh_ms = 5000 #60000
+opacity = 1.0 #0.85
 
 if __name__ == "__main__":
     filepath = get_latest_output_file(directory_path)
+    # filepath = "/Users/ryangaraygay/Library/MotiveWave/output/output (Mar-27 062404).txt"
     # print(filepath)
     fill_data = get_fills(filepath, contract_symbol)
     ats = compute_trade_stats(fill_data, contract_value)
@@ -349,30 +362,21 @@ if __name__ == "__main__":
         create_stats_window_pyqt6(ats)
     else:
         print('no fills found. loading test file')
-        filepath = "/Users/ryangaraygay/Library/MotiveWave/output/output (Mar-27 062404).txt"
-        fill_data = get_fills(filepath, contract_symbol)
-        ats = compute_trade_stats(fill_data, contract_value)
-        if len(ats) > 0:
-            create_stats_window_pyqt6(ats)
-        else:
-            print('test file did not contain any fills either')
-
-# filepath = '/Users/ryangaraygay/Library/MotiveWave/output/output (Mar-26 215623).txt'
-# filepath = "/Users/ryangaraygay/Library/MotiveWave/output/output (Mar-26 062616).txt"
-# filepath = "/Users/ryangaraygay/Library/MotiveWave/output/output (Mar-26 105455).txt"
-# output (Mar-26 215623).txt
+        # filepath = "/Users/ryangaraygay/Library/MotiveWave/output/output (Mar-27 062404).txt"
+        # fill_data = get_fills(filepath, contract_symbol)
+        # ats = compute_trade_stats(fill_data, contract_value)
+        # if len(ats) > 0:
+        #     create_stats_window_pyqt6(ats)
+        # else:
+        #     print('test file did not contain any fills either')
 
 # TODO
-## must have metrics
-# loss - avg (size, duration), max (size, duration)
-#   losses with large size should be red flagged
-#   losses with low duration should be red flagged
+# handle case where there are no trades for some account to start the day yet
 # directional losing streak (N, direction) vs (N, chop)
+# allow test mode (some hardcoded output)
 ## optional metrics (only if not computational expensive and have time to develop)
-# average time between trades
-#   losses spaced too close (less than avg gain) should be red flagged
-# time since last first entry
-#   open trades > 10 should be orange flagged
+#   average time between trades
+#   open trade duration (time since last first entry) - although we should let our winners run
 
 ## more features
 # alert

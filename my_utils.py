@@ -1,3 +1,4 @@
+from datetime import timedelta
 
 def find_key_with_lowest_order_id(data):
     """
@@ -42,3 +43,38 @@ def filter_namedtuples(list_of_namedtuples, attribute_name, target_value):
         if getattr(item, attribute_name) == target_value
     ]
     return filtered_list
+
+def average_timedelta(timedelta_list):
+    """Calculates the average of a list of timedelta objects using lambda."""
+
+    if not timedelta_list:
+        return timedelta(0)  # Return 0 if the list is empty
+
+    total_seconds = sum(map(lambda td: td.total_seconds(), timedelta_list))
+    average_seconds = total_seconds / len(timedelta_list)
+    return timedelta(seconds=average_seconds)
+
+def max_timedelta(timedelta_list):
+    """Calculates the maximum timedelta from a list."""
+    if not timedelta_list:
+        return timedelta(0) #return 0 if empty
+
+    return max(timedelta_list)
+
+def format_timedelta(timedelta_obj):
+    """
+    Formats a timedelta object into mm:ss format.
+
+    Args:
+        timedelta_obj: A timedelta object.
+
+    Returns:
+        A string representing the duration in mm:SS format, or "00:00" if the timedelta is None.
+    """
+    if timedelta_obj is None:
+        return "00:00"
+
+    total_seconds = int(timedelta_obj.total_seconds())
+    minutes = total_seconds // 60
+    seconds = (total_seconds % 60) // 60
+    return f"{minutes:02d}:{seconds:02d}"
