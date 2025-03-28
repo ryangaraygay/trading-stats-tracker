@@ -92,7 +92,12 @@ def compute_trade_stats(fill_data, es_contract_value):
             max_time = datetime.min
             loss_duration = list()
 
+            entry_is_long = True
+
             for fill in sorted_fill:
+                if len(grouped_trades) == 0:
+                    entry_is_long = "BUY" in fill.order_type
+
                 grouped_trades[fill.order_type].append(fill)
                 # print(grouped_trades)
 
@@ -137,7 +142,7 @@ def compute_trade_stats(fill_data, es_contract_value):
                         loss_max_size = max(loss_max_size, buy_qty) # can be sell_qty since completed trades have equal sell and buy qty
                         loss_max_value = min(loss_max_value, completed_profit_loss)
 
-                    streak_tracker.process(is_win)
+                    streak_tracker.process(is_win, entry_is_long)
 
                     duration = max_time - min_time
                     loss_duration.append(duration)
@@ -146,7 +151,7 @@ def compute_trade_stats(fill_data, es_contract_value):
                     grouped_trades.clear()
                     min_time = datetime.max
                     max_time = datetime.min
-        
+
             win_rate = 0 if completed_trades == 0 else total_wins/completed_trades * 100
             profit_factor = 2 if losses == 0 else gains/losses
             
@@ -171,6 +176,7 @@ def compute_trade_stats(fill_data, es_contract_value):
                 {"Long / Short Trades": [f'{total_buys} / {total_sells}']},
                 {"": [f'']},
                 {"Streak": [f'{streak_tracker.streak:+}', f'{losing_streak_color}']},
+                {"Streak Loss Mix": [f'{streak_tracker.get_loss_mix()}', f'{losing_streak_color}']},
                 {"Best / Worst Streak": [f'{streak_tracker.best_streak:+} / {streak_tracker.worst_streak:+}']},
                 {"": [f'']},
                 {"Net P/L": [f'${int(total_profit_or_loss):,}', f'{pnl_color}']},
@@ -284,7 +290,6 @@ def create_stats_window_pyqt6(account_trading_stats):
                     layout.addWidget(value_label, row_index, 1)
                     row_index += 1
         return row_index
-    
 
     dropdown.currentTextChanged.connect(dropdown_changed)
     ri = dropdown_changed(sorted_keys[0])
@@ -360,14 +365,15 @@ if __name__ == "__main__":
         #     print('test file did not contain any fills either')
 
 # TODO
-# directional losing streak (N, direction) vs (N, chop)
-# handle case where there are no trades for some account to start the day yet
+# is last loss multiple orders (or if not much difficult - was it a scale, multiple orders on the same side - or does this matter)
+# handle case where there are no trades for some account to start the day yet (dropdown + stats shouldn't break)
+# review avg, max loss duration didnt seem to work earlier
 # allow test mode (some hardcoded input file)
-# remove avg, max loss duration does not seem to work
 
 ## optional metrics (only if not computational expensive and have time to develop)
 #   average time between trades (exit to next entry))
 #   open trade duration (time since last first entry) - (yellow) we should let our winners run
+#   L/S mix for best and worst streak
 
 ## more features
 # alert
