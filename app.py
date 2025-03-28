@@ -16,7 +16,12 @@ from datetime import timedelta
 
 Trade = namedtuple("Trade", ["account_name", "order_id", "order_type", "quantity", "fill_price", "fill_time"])
 StatValue = namedtuple("Key", "Value")
-
+class Color:
+    CAUTION = "yellow"
+    WARNING = "orange"
+    CRITICAL = "red"
+    DEFAULT = "white"
+    
 account_trading_stats = {}
 existing_fill_count = 0
 
@@ -161,19 +166,19 @@ def compute_trade_stats(fill_data, es_contract_value):
             win_rate = 0 if completed_trades == 0 else total_wins/completed_trades * 100
             profit_factor = 2 if losses == 0 else gains/losses
             
-            overtrade_color = "red" if completed_trades > 20 else "orange" if completed_trades > 10 else "white"
-            winrate_color = "red" if win_rate < 20 else "orange" if win_rate < 40 else "white"
-            profitfactor_color = "red" if profit_factor < 0.5 else "orange" if profit_factor < 1 else "white"
-            losing_streak_color = "red" if streak < -2 else "white"
-            pnl_color = "red" if total_profit_or_loss < -1000 else "white"
-            max_drawdown_color = "orange" if max_realized_drawdown < -1000 else "white"
-            max_loss_color = "orange" if loss_max_value <= -900 else "white"
-            open_size_color = "orange" if abs(position_size) > 3 else "white"
-            loss_max_size_color = "red" if loss_max_size >= 10 else "orange" if loss_max_size >= 6 else "white"
+            overtrade_color = Color.CRITICAL if completed_trades > 20 else Color.WARNING if completed_trades > 10 else Color.DEFAULT
+            winrate_color = Color.CRITICAL if win_rate < 20 else Color.WARNING if win_rate < 40 else Color.DEFAULT
+            profitfactor_color = Color.CRITICAL if profit_factor < 0.5 else Color.WARNING if profit_factor < 1 else Color.DEFAULT
+            losing_streak_color = Color.CRITICAL if streak <= -5 else Color.WARNING if streak <=-2 else Color.DEFAULT
+            pnl_color = Color.CRITICAL if total_profit_or_loss < -1000 else Color.DEFAULT
+            max_drawdown_color = Color.WARNING if max_realized_drawdown < -1000 else Color.DEFAULT
+            max_loss_color = Color.WARNING if loss_max_value <= -900 else Color.DEFAULT
+            open_size_color = Color.WARNING if abs(position_size) > 3 else Color.DEFAULT
+            loss_max_size_color = Color.CRITICAL if loss_max_size >= 10 else Color.WARNING if loss_max_size >= 6 else Color.DEFAULT
 
             loss_avg_secs = my_utils.average_timedelta(loss_duration)
             loss_max_secs = my_utils.max_timedelta(loss_duration)
-            loss_max_secs_color = "orange" if loss_max_secs.total_seconds() > 300 else "white"
+            loss_max_secs_color = Color.WARNING if loss_max_secs.total_seconds() > 300 else Color.DEFAULT
 
             trading_stats = [
                 {"Trades": [f'{completed_trades}', f'{overtrade_color}']},
@@ -287,7 +292,7 @@ def create_stats_window_pyqt6(account_trading_stats):
                     layout.addWidget(key_label, row_index, 0)
 
                     value_label = QLabel(str(value_color[0]))
-                    color = value_color[1] if len(value_color) > 1 else "white"
+                    color = value_color[1] if len(value_color) > 1 else Color.DEFAULT
                     value_label.setStyleSheet(f"border: 1px solid black; color: {color};")
                     font = QFont()
                     font.setPointSize(27)
@@ -349,7 +354,7 @@ filepath = ""
 contract_symbol = "ESM5"
 contract_value = 50
 directory_path = "/Users/ryangaraygay/Library/MotiveWave/output/"  # Replace with your directory path
-auto_refresh_ms = 5000 #60000
+auto_refresh_ms = 30000 #60000
 opacity = 1.0 #0.85
 
 if __name__ == "__main__":
@@ -371,20 +376,22 @@ if __name__ == "__main__":
         #     print('test file did not contain any fills either')
 
 # TODO
-# handle case where there are no trades for some account to start the day yet
 # directional losing streak (N, direction) vs (N, chop)
-# allow test mode (some hardcoded output)
+# handle case where there are no trades for some account to start the day yet
+# allow test mode (some hardcoded input file)
+# remove avg, max loss duration does not seem to work
+
 ## optional metrics (only if not computational expensive and have time to develop)
-#   average time between trades
-#   open trade duration (time since last first entry) - although we should let our winners run
+#   average time between trades (exit to next entry))
+#   open trade duration (time since last first entry) - (yellow) we should let our winners run
 
 ## more features
 # alert
 #   pause trading when selected account has losing streak
-#   but first think through how it will work
-#   ensure it does not disable on every refresh of tradestats
-#   and after a break, we still have a losing streak - so do we snooze disable for N minutes?
-# handle the ALL stats case
+#       but first think through how it will work
+#       ensure it does not disable on every refresh of tradestats
+#       and after a break, we still have a losing streak - so do we snooze disable for N minutes?
+# handle the ALL stats case (multi-account view)
 # dropdown selection for which file
 # overlay even to fullscreen window
 
