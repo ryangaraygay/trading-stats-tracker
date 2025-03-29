@@ -176,3 +176,4 @@ cython_debug/
 # custom
 .DS_Store
 sample-log-files/
+sample-account-names.txt

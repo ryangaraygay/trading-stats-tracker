@@ -183,8 +183,8 @@ def compute_trade_stats(fill_data, es_contract_value):
                         loss_scaled_count += 1 if entries_in_trade_count > 1 else 0
                     else:
                         win_duration.append(duration)
-                        
-                    streak_tracker.process(is_win, entry_is_long)
+                    
+                    streak_tracker.process(is_win, entry_is_long, last_exit_time)
 
                     # print('trade complete')
                     grouped_trades.clear()
@@ -214,6 +214,7 @@ def compute_trade_stats(fill_data, es_contract_value):
             time_between_trades_avg_secs = my_utils.average_timedelta(time_between_trades)
             time_between_trades_max_secs = my_utils.max_timedelta(time_between_trades)
             intertrade_time_avg_color = Color.WARNING if time_between_trades_avg_secs < timedelta(seconds=60) else Color.DEFAULT
+            streak_tradespermin_color = Color.WARNING if streak_tracker.loss_trades_per_minute() >= 0.4 else Color.CRITICAL if streak_tracker.loss_trades_per_minute() >= 1 else Color.DEFAULT # 0.4 is 2 trades in 5 mins
             
             trading_stats = [
                 {"Trades": [f'{completed_trades}', f'{overtrade_color}']},
@@ -222,6 +223,7 @@ def compute_trade_stats(fill_data, es_contract_value):
                 {"Long/Short Trades": [f'{total_buys} / {total_sells}']},
                 {"": [f'']},
                 {"Streak": [f'{streak_tracker.streak:+}', f'{losing_streak_color}']},
+                {"Streak Loss Freq": [f'{streak_tracker.loss_trades_per_minute()} trades/min', f'{streak_tradespermin_color}']},
                 {"Streak Loss Mix": [f'{streak_tracker.get_loss_mix()}', f'{losing_streak_color}']},
                 {"Best/Worst Streak": [f'{streak_tracker.best_streak:+} / {streak_tracker.worst_streak:+}']},
                 {"": [f'']},
@@ -410,9 +412,10 @@ if __name__ == "__main__":
         print('no fills found')
 
 # TODO
-## optional metrics (only if not computational expensive and have time to develop)
-#   losing streak (total duration, avg intra-trade time) - very good indication of tilt
-#   open trade duration (time since last first entry) - (yellow) we should let our winners run
+## metrics
+#   long / short should be based on individual fills but per first entry in trade group
+#   contracts warning color if > 40
+#   open trade duration (time since last first entry) - (yellow) we should let our winners run - put in duration section
 
 ## more features
 # alert
