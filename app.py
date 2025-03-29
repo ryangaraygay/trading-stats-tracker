@@ -124,12 +124,14 @@ def compute_trade_stats(fill_data, es_contract_value):
             win_duration = list()
             entry_is_long = True
             time_between_trades = list()
+            entry_time = datetime.max
 
             for fill in sorted_fill:
                 if len(grouped_trades) == 0:
                     entry_is_long = "BUY" in fill.order_type
+                    entry_time = fill.fill_time
                     if completed_trades > 0: # start only when there is at least one
-                        duration_since_last_trade = fill.fill_time - last_exit_time
+                        duration_since_last_trade = entry_time - last_exit_time
                         time_between_trades.append(duration_since_last_trade)
 
                 grouped_trades[fill.order_type].append(fill)
@@ -197,6 +199,7 @@ def compute_trade_stats(fill_data, es_contract_value):
                     grouped_trades.clear()
                     min_time = datetime.max
                     max_time = datetime.min
+                    entry_time = datetime.max
 
             win_rate = 0 if completed_trades == 0 else total_wins/completed_trades * 100
             profit_factor = 2 if losses == 0 else gains/losses
@@ -226,6 +229,8 @@ def compute_trade_stats(fill_data, es_contract_value):
             streak_tradespermin_color = Color.WARNING if streak_tracker.loss_trades_per_minute() >= 0.4 else Color.CRITICAL if streak_tracker.loss_trades_per_minute() >= 1 else Color.DEFAULT # 0.4 is 2 trades in 5 mins
             contracts_color = Color.CRITICAL if total_buy_contracts >= 60 else Color.WARNING if total_buy_contracts >= 40 else Color.DEFAULT
 
+            open_entry_time = entry_time.strftime("%m-%d %H:%M") if position_size > 0 else ''
+
             trading_stats = [
                 {"Trades": [f'{completed_trades}', f'{overtrade_color}']},
                 {"Win Rate": [f'{win_rate:.0f}%', f'{winrate_color}']},
@@ -245,6 +250,7 @@ def compute_trade_stats(fill_data, es_contract_value):
                 {"Max Loss": [f'${int(loss_max_value):,}', f'{max_loss_color}']},
                 {"": [f'']},
                 {"Open Size": [f'{int(position_size)}', f'{open_size_color}']},
+                {"Open Trade Entry": [f'{open_entry_time}']},
                 {"Max Loss Size": [f'{int(loss_max_size)}', f'{loss_max_size_color}']},
                 {"": [f'']},
                 {"InterTrade Avg": [f'{my_utils.format_timedelta(time_between_trades_avg_secs)}', f'{intertrade_time_avg_color}']},
@@ -255,7 +261,7 @@ def compute_trade_stats(fill_data, es_contract_value):
                 {"Orders L/S": [f'{total_buys} / {total_sells}']},
                 {"Contracts L/S": [f'{total_buy_contracts} / {total_sell_contracts}', f'{contracts_color}']},
                 {"": [f'']},
-                {"Last Updated": [f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}']},
+                {"Last Updated": [f'{datetime.now().strftime("%m-%d %H:%M")}']},
                 # {"Account": f'{account_name}'}
             ]
 
@@ -335,7 +341,7 @@ def create_stats_window_pyqt6(account_trading_stats):
         row_index = 2
         for stat in selected_stats:
             for key, value_color in stat.items():
-                if isinstance(value_color[0], str) and not value_color[0]:
+                if isinstance(key, str) and not key:
                     layout.setRowMinimumHeight(row_index, 20)
                     row_index += 1
                 else:
@@ -411,7 +417,7 @@ contract_value = 50
 directory_path = "/Users/ryangaraygay/Library/MotiveWave/output/"  # Replace with your directory path
 auto_refresh_ms = 30000 #60000
 opacity = 1.0 #0.85
-button_row_index_start = 31 # fixed so we don't have to window adjust when refreshing and some accounts have no fills (and therefore no stats)
+button_row_index_start = 32 # fixed so we don't have to window adjust when refreshing and some accounts have no fills (and therefore no stats)
 
 if __name__ == "__main__":
     filepath = get_latest_output_file(directory_path)
