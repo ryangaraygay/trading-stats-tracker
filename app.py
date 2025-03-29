@@ -95,8 +95,10 @@ def compute_trade_stats(fill_data, es_contract_value):
         for account_name in account_names_with_fills:
             grouped_trades = defaultdict(list)
             completed_trades = 0
+            total_long_trades = 0
             total_buys = 0
             total_buy_contracts = 0
+            total_short_trades = 0
             total_sells = 0
             total_sell_contracts = 0
             total_profit_or_loss = 0.0
@@ -184,6 +186,9 @@ def compute_trade_stats(fill_data, es_contract_value):
                     else:
                         win_duration.append(duration)
                     
+                    total_long_trades += 1 if entry_is_long else 0
+                    total_short_trades += 1 if not entry_is_long else 0
+
                     streak_tracker.process(is_win, entry_is_long, last_exit_time)
 
                     # print('trade complete')
@@ -220,7 +225,7 @@ def compute_trade_stats(fill_data, es_contract_value):
                 {"Trades": [f'{completed_trades}', f'{overtrade_color}']},
                 {"Win Rate": [f'{win_rate:.0f}%', f'{winrate_color}']},
                 {"Profit Factor": [f'{profit_factor:.01f}', f'{profitfactor_color}']},
-                {"Long/Short Trades": [f'{total_buys} / {total_sells}']},
+                {"Trades L/S": [f'{total_long_trades} / {total_short_trades}']},
                 {"": [f'']},
                 {"Streak": [f'{streak_tracker.streak:+}', f'{losing_streak_color}']},
                 {"Streak Loss Freq": [f'{streak_tracker.loss_trades_per_minute()} trades/min', f'{streak_tradespermin_color}']},
@@ -230,17 +235,19 @@ def compute_trade_stats(fill_data, es_contract_value):
                 {"Net P/L": [f'${int(total_profit_or_loss):,}', f'{pnl_color}']},
                 {"Max Drawdown": [f'${int(max_realized_drawdown):,}', f'{max_drawdown_color}']},
                 {"Max Loss": [f'${int(loss_max_value):,}', f'{max_loss_color}']},
-                {"Scaled Losses": [f'{int(loss_scaled_count):,}', f'{loss_scaled_count_color}']},
                 {"": [f'']},
                 {"Open Size": [f'{int(position_size)}', f'{open_size_color}']},
                 {"Max Loss Size": [f'{int(loss_max_size)}', f'{loss_max_size_color}']},
+                {"Scaled Losses": [f'{int(loss_scaled_count):,}', f'{loss_scaled_count_color}']},
                 {"": [f'']},
                 {"Duration Avg W/L": [f'{my_utils.format_timedelta(win_avg_secs)} / {my_utils.format_timedelta(loss_avg_secs)}', f'{avg_duration_color}']},
                 {"Duration Max W/L": [f'{my_utils.format_timedelta(win_max_secs)} / {my_utils.format_timedelta(loss_max_secs)}', f'{max_duration_color}']},
                 {"InterTrade Avg": [f'{my_utils.format_timedelta(time_between_trades_avg_secs)}', f'{intertrade_time_avg_color}']},
                 {"InterTrade Max": [f'{my_utils.format_timedelta(time_between_trades_max_secs)}']},
                 {"": [f'']},
+                {"Orders L/S": [f'{total_buys} / {total_sells}']},
                 {"Contracts L/S": [f'{total_buy_contracts} / {total_sell_contracts}']},
+                {"": [f'']},
                 {"Last Updated": [f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}']},
                 # {"Account": f'{account_name}'}
             ]
@@ -327,6 +334,7 @@ def create_stats_window_pyqt6(account_trading_stats):
                 else:
                     key_label = QLabel(key)
                     key_label.setStyleSheet("border: 1px solid black; color: white;")
+                    key_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
                     font = QFont()
                     font.setPointSize(27)
                     key_label.setFont(font)
@@ -396,7 +404,7 @@ contract_value = 50
 directory_path = "/Users/ryangaraygay/Library/MotiveWave/output/"  # Replace with your directory path
 auto_refresh_ms = 30000 #60000
 opacity = 1.0 #0.85
-button_row_index_start = 28 # fixed so we don't have to window adjust when refreshing and some accounts have no fills (and therefore no stats)
+button_row_index_start = 29 # fixed so we don't have to window adjust when refreshing and some accounts have no fills (and therefore no stats)
 
 if __name__ == "__main__":
     filepath = get_latest_output_file(directory_path)

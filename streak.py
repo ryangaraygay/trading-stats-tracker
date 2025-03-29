@@ -67,14 +67,14 @@ class Streak:
         short_percentage = (self.short_losses / total_losses) * 100
 
         if long_percentage == 100:
-            return f"100% Long"
+            return f"100% long"
         elif short_percentage == 100:
-            return f"100% Short"
+            return f"100% short"
         else:
             if long_percentage > short_percentage:
-                return f"{long_percentage:.0f}% Long"
+                return f"{long_percentage:.0f}% long"
             else:
-                return f"{short_percentage:.0f}% Short"
+                return f"{short_percentage:.0f}% short"
             
     def loss_trades_per_minute(self):
         """
