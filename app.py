@@ -80,6 +80,7 @@ def compute_trade_stats(fill_data, es_contract_value):
             max_realized_drawdown = 0
             loss_max_size = 0 # not individual orders but within a trade (group)
             loss_max_value = 0 # not individual orders but within a trade (group)
+            loss_scaled_count = 0 # losses that involved multiple entries
 
             streak_tracker = Streak()
 
@@ -91,6 +92,7 @@ def compute_trade_stats(fill_data, es_contract_value):
             min_time = datetime.max
             max_time = datetime.min
             loss_duration = list()
+            win_duration = list()
 
             entry_is_long = True
 
@@ -138,14 +140,20 @@ def compute_trade_stats(fill_data, es_contract_value):
 
                     max_realized_drawdown = min(total_profit_or_loss, max_realized_drawdown)
                     
+                    duration = max_time - min_time
                     if not is_win:
                         loss_max_size = max(loss_max_size, buy_qty) # can be sell_qty since completed trades have equal sell and buy qty
                         loss_max_value = min(loss_max_value, completed_profit_loss)
+                        
+                        loss_duration.append(duration)
 
+                        # scaled loss
+                        entries_in_trade_count = len(grouped_trades["Filled BUY" if entry_is_long else "Filled SELL"])
+                        loss_scaled_count += 1 if entries_in_trade_count > 1 else 0
+                    else:
+                        win_duration.append(duration)
+                        
                     streak_tracker.process(is_win, entry_is_long)
-
-                    duration = max_time - min_time
-                    loss_duration.append(duration)
 
                     # print('trade complete')
                     grouped_trades.clear()
@@ -164,11 +172,14 @@ def compute_trade_stats(fill_data, es_contract_value):
             max_loss_color = Color.WARNING if loss_max_value <= -900 else Color.DEFAULT
             open_size_color = Color.WARNING if abs(position_size) > 3 else Color.DEFAULT
             loss_max_size_color = Color.CRITICAL if loss_max_size >= 10 else Color.WARNING if loss_max_size >= 6 else Color.DEFAULT
+            loss_scaled_count_color = Color.CRITICAL if loss_scaled_count >= 5 else Color.WARNING if loss_scaled_count >= 3 else Color.DEFAULT
 
             loss_avg_secs = my_utils.average_timedelta(loss_duration)
             loss_max_secs = my_utils.max_timedelta(loss_duration)
             loss_max_secs_color = Color.WARNING if loss_max_secs.total_seconds() > 300 else Color.DEFAULT
-
+            win_avg_secs = my_utils.average_timedelta(win_duration)
+            win_max_secs = my_utils.max_timedelta(win_duration)
+            
             trading_stats = [
                 {"Trades": [f'{completed_trades}', f'{overtrade_color}']},
                 {"Win Rate": [f'{win_rate:.0f}%', f'{winrate_color}']},
@@ -182,12 +193,15 @@ def compute_trade_stats(fill_data, es_contract_value):
                 {"Net P/L": [f'${int(total_profit_or_loss):,}', f'{pnl_color}']},
                 {"Max Drawdown": [f'${int(max_realized_drawdown):,}', f'{max_drawdown_color}']},
                 {"Max Loss": [f'${int(loss_max_value):,}', f'{max_loss_color}']},
+                {"Scaled Losses": [f'{int(loss_scaled_count):,}', f'{loss_scaled_count_color}']},
                 {"": [f'']},
                 {"Open Size": [f'{int(position_size)}', f'{open_size_color}']},
                 {"Max Loss Size": [f'{int(loss_max_size)}', f'{loss_max_size_color}']},
                 {"": [f'']},
                 {"Loss Duration Avg": [f'{my_utils.format_timedelta(loss_avg_secs)}']},
                 {"Loss Duration Max": [f'{my_utils.format_timedelta(loss_max_secs)}', f'{loss_max_secs_color}']},
+                {"Win Duration Avg": [f'{my_utils.format_timedelta(win_avg_secs)}']},
+                {"Win Duration Max": [f'{my_utils.format_timedelta(win_max_secs)}']},
                 {"": [f'']},
                 {"Contracts": [f'{total_buy_contracts} / {total_sell_contracts}']},
                 {"Last Updated": [f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}']},
@@ -365,9 +379,7 @@ if __name__ == "__main__":
         #     print('test file did not contain any fills either')
 
 # TODO
-# is last loss multiple orders (or if not much difficult - was it a scale, multiple orders on the same side - or does this matter)
 # handle case where there are no trades for some account to start the day yet (dropdown + stats shouldn't break)
-# review avg, max loss duration didnt seem to work earlier
 # allow test mode (some hardcoded input file)
 
 ## optional metrics (only if not computational expensive and have time to develop)
@@ -381,6 +393,7 @@ if __name__ == "__main__":
 #       but first think through how it will work
 #       ensure it does not disable on every refresh of tradestats
 #       and after a break, we still have a losing streak - so do we snooze disable for N minutes?
+#   recommended actions based on stats - display somehow
 # handle the ALL stats case (multi-account view)
 # dropdown selection for which file
 # overlay even to fullscreen window
