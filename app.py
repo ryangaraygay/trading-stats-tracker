@@ -20,7 +20,7 @@ class Color:
     CAUTION = "yellow"
     WARNING = "orange"
     CRITICAL = "red"
-    OK = "green"
+    OK = "#90EE90"
     DEFAULT = "white"
     
 account_trading_stats = {}
@@ -208,7 +208,7 @@ def compute_trade_stats(fill_data, es_contract_value):
             winrate_color = Color.CRITICAL if win_rate < 20 else Color.WARNING if win_rate < 40 else Color.DEFAULT
             profitfactor_color = Color.CRITICAL if profit_factor < 0.5 else Color.WARNING if profit_factor < 1 else Color.DEFAULT
             losing_streak_color = Color.CRITICAL if streak_tracker.streak <= -5 else Color.WARNING if streak_tracker.streak <=-2 else Color.DEFAULT
-            pnl_color = Color.CRITICAL if total_profit_or_loss < -1000 else Color.CAUTION if total_profit_or_loss >= 1000 else Color.DEFAULT
+            pnl_color = Color.CRITICAL if total_profit_or_loss < -1000 else Color.OK if total_profit_or_loss >= 1000 else Color.DEFAULT
             max_drawdown_color = Color.WARNING if max_realized_drawdown < -1000 else Color.DEFAULT
             max_loss_color = Color.WARNING if loss_max_value <= -900 else Color.DEFAULT
             open_size_color = Color.WARNING if abs(position_size) > 3 else Color.DEFAULT
@@ -245,7 +245,7 @@ def compute_trade_stats(fill_data, es_contract_value):
                 {"Streak Loss Max Size": [f'{streak_tracker.get_max_size_of_current_streak()}']},
                 {"Best/Worst Streak": [f'{streak_tracker.best_streak:+} / {streak_tracker.worst_streak:+}']},
                 {"": [f'']},
-                {"Net P/L": [f'{int(total_profit_or_loss):,}', f'{pnl_color}']},
+                {"Profit/Loss": [f'{int(total_profit_or_loss):,}', f'{pnl_color}']},
                 {"Max Drawdown": [f'{int(max_realized_drawdown):,}', f'{max_drawdown_color}']},
                 {"Max Loss": [f'{int(loss_max_value):,}', f'{max_loss_color}']},
                 {"": [f'']},
@@ -418,7 +418,7 @@ contract_symbol = "ESM5"
 contract_value = 50
 directory_path = "/Users/ryangaraygay/Library/MotiveWave/output/"  # Replace with your directory path
 auto_refresh_ms = 30000 #60000
-opacity = 1.0 #0.85
+opacity = 0.9
 button_row_index_start = 32 # fixed so we don't have to window adjust when refreshing and some accounts have no fills (and therefore no stats)
 
 if __name__ == "__main__":
@@ -435,9 +435,6 @@ if __name__ == "__main__":
         print('no fills found')
 
 # TODO
-## metrics
-#   open trade duration (time since last first entry) - (yellow) we should let our winners run - put in duration section
-
 ## more features
 # alert
 #   recommended actions based on stats - display somehow (ensure relevancy/frequency)
@@ -446,8 +443,7 @@ if __name__ == "__main__":
 #       ensure it does not disable on every refresh of tradestats
 #       and after a break, we still have a losing streak - so do we snooze disable for N minutes?
 # handle the ALL stats case (multi-account view)
-# dropdown selection for which file
-# overlay even to fullscreen window
+# dropdown selection for which file (or maybe even multi-select)
 
 ## improvements
 # calculate average through the loop instead of lambda
