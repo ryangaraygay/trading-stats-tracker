@@ -227,7 +227,6 @@ def compute_trade_stats(fill_data, es_contract_value):
             intertrade_time_avg_color = Color.WARNING if time_between_trades_avg_secs < timedelta(seconds=60) else Color.DEFAULT
             
             streak_tradespermin_color = Color.WARNING if streak_tracker.loss_trades_per_minute() >= 0.4 else Color.CRITICAL if streak_tracker.loss_trades_per_minute() >= 1 else Color.DEFAULT # 0.4 is 2 trades in 5 mins
-            contracts_color = Color.CRITICAL if total_buy_contracts >= 60 else Color.WARNING if total_buy_contracts >= 40 else Color.DEFAULT
 
             open_entry_time = entry_time.strftime("%m-%d %H:%M") if position_size > 0 else ''
 
@@ -259,7 +258,7 @@ def compute_trade_stats(fill_data, es_contract_value):
                 {"Duration Max W/L": [f'{my_utils.format_timedelta(win_max_secs)} / {my_utils.format_timedelta(loss_max_secs)}', f'{max_duration_color}']},
                 {"": [f'']},
                 {"Orders L/S": [f'{total_buys} / {total_sells}']},
-                {"Contracts L/S": [f'{total_buy_contracts} / {total_sell_contracts}', f'{contracts_color}']},
+                {"Contracts L/S": [f'{total_buy_contracts} / {total_sell_contracts}']},
                 {"": [f'']},
                 {"Last Updated": [f'{datetime.now().strftime("%m-%d %H:%M")}']},
                 # {"Account": f'{account_name}'}
@@ -418,7 +417,7 @@ contract_symbol = "ESM5"
 contract_value = 50
 directory_path = "/Users/ryangaraygay/Library/MotiveWave/output/"  # Replace with your directory path
 auto_refresh_ms = 30000 #60000
-opacity = 0.9
+opacity = 1
 button_row_index_start = 32 # fixed so we don't have to window adjust when refreshing and some accounts have no fills (and therefore no stats)
 
 if __name__ == "__main__":
@@ -438,6 +437,9 @@ if __name__ == "__main__":
 ## more features
 # alert
 #   recommended actions based on stats - display somehow (ensure relevancy/frequency)
+#       send message details along inside account_trading_stats
+#       message should include key (account name)
+#       messages should be handled only in dropdown-selected event (meaning alerts for none selected account should have no effect)
 #   pause trading when selected account has losing streak
 #       but first think through how it will work (not unitentionally disruptive/nuisance)
 #       ensure it does not disable on every refresh of tradestats
@@ -447,3 +449,5 @@ if __name__ == "__main__":
 
 ## improvements
 # calculate average through the loop instead of lambda
+# profile and improve performance (so refresh freq can be higher)
+# clean-up and organize code
