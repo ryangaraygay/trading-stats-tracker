@@ -20,6 +20,7 @@ class Color:
     CAUTION = "yellow"
     WARNING = "orange"
     CRITICAL = "red"
+    OK = "green"
     DEFAULT = "white"
     
 account_trading_stats = {}
@@ -167,7 +168,7 @@ def compute_trade_stats(fill_data, es_contract_value):
             winrate_color = Color.CRITICAL if win_rate < 20 else Color.WARNING if win_rate < 40 else Color.DEFAULT
             profitfactor_color = Color.CRITICAL if profit_factor < 0.5 else Color.WARNING if profit_factor < 1 else Color.DEFAULT
             losing_streak_color = Color.CRITICAL if streak_tracker.streak <= -5 else Color.WARNING if streak_tracker.streak <=-2 else Color.DEFAULT
-            pnl_color = Color.CRITICAL if total_profit_or_loss < -1000 else Color.DEFAULT
+            pnl_color = Color.CRITICAL if total_profit_or_loss < -1000 else Color.OK if total_profit_or_loss >= 1000 else Color.DEFAULT
             max_drawdown_color = Color.WARNING if max_realized_drawdown < -1000 else Color.DEFAULT
             max_loss_color = Color.WARNING if loss_max_value <= -900 else Color.DEFAULT
             open_size_color = Color.WARNING if abs(position_size) > 3 else Color.DEFAULT
