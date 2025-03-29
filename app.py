@@ -5,6 +5,7 @@ import glob
 import datetime
 import my_utils
 from streak import Streak  # Import the Streak class
+from hammerspoon_alert_manager import HammerspoonAlertManager
 
 from collections import defaultdict, namedtuple
 from datetime import datetime
@@ -15,6 +16,7 @@ from pynput.keyboard import Key, Controller
 from datetime import timedelta
 
 Trade = namedtuple("Trade", ["account_name", "order_id", "order_type", "quantity", "fill_price", "fill_time"])
+AlertMessage = namedtuple("AlertMessage", ["message", "account", "duration_secs", "display_once", "min_interval_secs"])
 StatValue = namedtuple("Key", "Value")
 class Color:
     CAUTION = "yellow"
@@ -24,6 +26,7 @@ class Color:
     DEFAULT = "white"
     
 account_trading_stats = {}
+account_trading_alerts = {}
 existing_fill_count = 0
 account_names_loaded = list()
 
@@ -205,10 +208,16 @@ def compute_trade_stats(fill_data, es_contract_value):
             profit_factor = 2 if losses == 0 else gains/losses
             
             overtrade_color = Color.CRITICAL if completed_trades > 20 else Color.WARNING if completed_trades > 10 else Color.DEFAULT
+            overtrade_message = "High Trade Count. Consider Stopping" if completed_trades > 20 else "High Trade Count. Wind down" if completed_trades > 10 else ""
+
+            pnl_color = Color.CRITICAL if total_profit_or_loss < -1000 else Color.OK if total_profit_or_loss >= 1000 else Color.DEFAULT
+            pnl_message = "Heavy Loss. Consider Stopping" if total_profit_or_loss < -1000 else "Sizable Gain. Wind down" if total_profit_or_loss >= 1000 else ""
+
             winrate_color = Color.CRITICAL if win_rate < 20 else Color.WARNING if win_rate < 40 else Color.DEFAULT
             profitfactor_color = Color.CRITICAL if profit_factor < 0.5 else Color.WARNING if profit_factor < 1 else Color.DEFAULT
+            
             losing_streak_color = Color.CRITICAL if streak_tracker.streak <= -5 else Color.WARNING if streak_tracker.streak <=-2 else Color.DEFAULT
-            pnl_color = Color.CRITICAL if total_profit_or_loss < -1000 else Color.OK if total_profit_or_loss >= 1000 else Color.DEFAULT
+            
             max_drawdown_color = Color.WARNING if max_realized_drawdown < -1000 else Color.DEFAULT
             max_loss_color = Color.WARNING if loss_max_value <= -900 else Color.DEFAULT
             open_size_color = Color.WARNING if abs(position_size) > 3 else Color.DEFAULT
@@ -265,10 +274,21 @@ def compute_trade_stats(fill_data, es_contract_value):
             ]
 
             # print(trading_stats)
-
             account_trading_stats[account_name] = trading_stats
 
-    return account_trading_stats
+            alert_duration_default = 5
+            alert_min_interval_secs_default = 0
+
+            trading_alerts = []
+            if (len(overtrade_message) > 0):
+                trading_alerts.append(AlertMessage(overtrade_message, account_name, alert_duration_default, True, alert_min_interval_secs_default))
+            if (len(pnl_message) > 0):
+                trading_alerts.append(AlertMessage(pnl_message, account_name, alert_duration_default, False, 60000))
+
+            # print(trading_alerts)
+            account_trading_alerts[account_name] = trading_alerts
+
+    return [ account_trading_stats, account_trading_alerts ]
 
 def pause_trading():
     """Pause trading functionality (empty implementation)."""
@@ -320,7 +340,7 @@ def create_stats_window_pyqt6(account_trading_stats):
         current_fill_count = len(fill_data)
         global existing_fill_count
         if current_fill_count != existing_fill_count:
-            account_trading_stats = compute_trade_stats(fill_data, contract_value)
+            account_trading_stats, account_trading_alerts = compute_trade_stats(fill_data, contract_value)
             dropdown_changed(selected_key) #re-render with the updated data.
             existing_fill_count = current_fill_count
 
@@ -330,6 +350,8 @@ def create_stats_window_pyqt6(account_trading_stats):
     refresh_button.clicked.connect(refresh_data)
     pause_button.clicked.connect(pause_trading)
     close_button.clicked.connect(close_app)
+
+    alert_manager = HammerspoonAlertManager()
 
     def dropdown_changed(selected_key):
         for i in reversed(range(layout.count())):
@@ -362,6 +384,10 @@ def create_stats_window_pyqt6(account_trading_stats):
                     value_label.setFont(font)
                     layout.addWidget(value_label, row_index, 1)
                     row_index += 1
+        selected_alerts = account_trading_alerts[selected_key]
+        for alert in selected_alerts:
+            alert_manager.display_alert(alert.message, alert.account, alert.duration_secs, alert.display_once, alert.min_interval_secs)
+            # print(alert)
     
     dropdown.currentTextChanged.connect(dropdown_changed)
     dropdown_changed(sorted_keys[0])
@@ -427,7 +453,7 @@ if __name__ == "__main__":
     # print(filepath)
     get_account_names(filepath)
     fill_data = get_fills(filepath, contract_symbol)
-    ats = compute_trade_stats(fill_data, contract_value)
+    ats, ata = compute_trade_stats(fill_data, contract_value)
     if len(ats) > 0:
         create_stats_window_pyqt6(ats)
     else:
@@ -436,10 +462,8 @@ if __name__ == "__main__":
 # TODO
 ## more features
 # alert
-#   recommended actions based on stats - display somehow (ensure relevancy/frequency)
-#       send message details along inside account_trading_stats
-#       message should include key (account name)
-#       messages should be handled only in dropdown-selected event (meaning alerts for none selected account should have no effect)
+#   recommended actions based on stats - (ensure relevancy/frequency)
+#       simplify conditional+message for defining alerts
 #   pause trading when selected account has losing streak
 #       but first think through how it will work (not unitentionally disruptive/nuisance)
 #       ensure it does not disable on every refresh of tradestats

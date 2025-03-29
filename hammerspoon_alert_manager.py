@@ -7,7 +7,6 @@ class HammerspoonAlertManager:
     """
     Manages Hammerspoon alerts with account-specific display limits.
     """
-
     def __init__(self):
         self._lock = threading.Lock()
         self._account_message_data = {}  # Store display data per account and message
@@ -15,7 +14,9 @@ class HammerspoonAlertManager:
     def _execute_hammerspoon_lua(self, lua_code: str):
         """Executes Lua code in Hammerspoon using hammerspoon_bridge with -c."""
         try:
-            subprocess.run(["hs", "-c", lua_code], check=True)
+            print(f'lua {lua_code}')
+            hs_path = "/usr/local/bin/hs"
+            subprocess.run([hs_path,'-c', lua_code], check=True)
         except subprocess.CalledProcessError as e:
             print(f"Error executing Hammerspoon Lua: {e}")
 
@@ -57,7 +58,9 @@ class HammerspoonAlertManager:
                     return
 
             # Display the alert via hammerspoon_bridge
-            lua_code = f'hs.alert.show("{message}", {duration_secs})'
+            # alert_customization = "{ }"
+            alert_customization = "{ fillColor = { red = 0, green = 255, blue = 255, alpha = 0.7 }, textColor = { white=0.1, alpha=1 }}"
+            lua_code = f'hs.alert.show("{message}", {alert_customization}, hs.screen.primaryScreen(), {duration_secs})'
             self._execute_hammerspoon_lua(lua_code)
 
             # Update message data
