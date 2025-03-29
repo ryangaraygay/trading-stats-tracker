@@ -10,8 +10,10 @@ class Streak:
         self.short_losses = 0
         self.streak_start_time = None
         self.streak_last_trade_time = None
+        self.total_trade_size = 0  # Store total trade size during the streak
+        self.max_trade_size = 0  # Track max trade size
 
-    def process(self, is_win, is_long=True, trade_time=None):
+    def process(self, is_win, is_long=True, trade_time=None, trade_size=1):
         """
         Processes a trade result and updates the streak.
 
@@ -24,6 +26,8 @@ class Streak:
 
         if self.streak == 0 and not is_win:
             self.streak_start_time = trade_time
+            self.total_trade_size += trade_size
+            self.max_trade_size = trade_size  # Initialize max trade size
 
         if is_win:
             if self.is_last_trade_win:
@@ -38,6 +42,8 @@ class Streak:
             # reset streak frequency variables
             self.streak_start_time = None
             self.streak_last_trade_time = None
+            self.total_trade_size = 0 #reset trade size
+            self.max_trade_size = 0
         else:
             if not self.is_last_trade_win:
                 self.streak -= 1
@@ -46,6 +52,8 @@ class Streak:
                 self.streak = -1
                 self.streak_start_time = trade_time
 
+            self.total_trade_size += trade_size
+            self.max_trade_size = max(self.max_trade_size, trade_size)
             self.is_last_trade_win = False
             self.worst_streak = min(self.worst_streak, self.streak)
             if is_long:
@@ -89,3 +97,18 @@ class Streak:
 
         trades_per_min = abs(self.streak) / elapsed_time_secs
         return round(trades_per_min, 2)
+
+    def get_avg_size_of_current_streak(self):
+        """
+        Calculates and returns the average trade size during the current streak.
+        """
+        if self.streak == 0 :
+            return 0.00
+
+        return self.total_trade_size / abs(self.streak)
+
+    def get_max_size_of_current_streak(self):
+        """
+        Returns the maximum trade size encountered during the current streak.
+        """
+        return self.max_trade_size

@@ -173,9 +173,11 @@ def compute_trade_stats(fill_data, es_contract_value):
                     max_realized_drawdown = min(total_profit_or_loss, max_realized_drawdown)
                     duration = max_time - min_time
                     last_exit_time = max_time
+
+                    trade_size = int(buy_qty) # can be sell_qty since completed trades have equal sell and buy qty
                     
                     if not is_win:
-                        loss_max_size = max(loss_max_size, buy_qty) # can be sell_qty since completed trades have equal sell and buy qty
+                        loss_max_size = max(loss_max_size, trade_size) 
                         loss_max_value = min(loss_max_value, completed_profit_loss)
                         
                         loss_duration.append(duration)
@@ -189,7 +191,7 @@ def compute_trade_stats(fill_data, es_contract_value):
                     total_long_trades += 1 if entry_is_long else 0
                     total_short_trades += 1 if not entry_is_long else 0
 
-                    streak_tracker.process(is_win, entry_is_long, last_exit_time)
+                    streak_tracker.process(is_win, entry_is_long, last_exit_time, trade_size)
 
                     # print('trade complete')
                     grouped_trades.clear()
@@ -203,7 +205,7 @@ def compute_trade_stats(fill_data, es_contract_value):
             winrate_color = Color.CRITICAL if win_rate < 20 else Color.WARNING if win_rate < 40 else Color.DEFAULT
             profitfactor_color = Color.CRITICAL if profit_factor < 0.5 else Color.WARNING if profit_factor < 1 else Color.DEFAULT
             losing_streak_color = Color.CRITICAL if streak_tracker.streak <= -5 else Color.WARNING if streak_tracker.streak <=-2 else Color.DEFAULT
-            pnl_color = Color.CRITICAL if total_profit_or_loss < -1000 else Color.OK if total_profit_or_loss >= 1000 else Color.DEFAULT
+            pnl_color = Color.CRITICAL if total_profit_or_loss < -1000 else Color.CAUTION if total_profit_or_loss >= 1000 else Color.DEFAULT
             max_drawdown_color = Color.WARNING if max_realized_drawdown < -1000 else Color.DEFAULT
             max_loss_color = Color.WARNING if loss_max_value <= -900 else Color.DEFAULT
             open_size_color = Color.WARNING if abs(position_size) > 3 else Color.DEFAULT
@@ -216,20 +218,26 @@ def compute_trade_stats(fill_data, es_contract_value):
             win_max_secs = my_utils.max_timedelta(win_duration)
             avg_duration_color = Color.WARNING if win_avg_secs < loss_avg_secs else Color.DEFAULT
             max_duration_color = Color.WARNING if win_max_secs < loss_max_secs else Color.DEFAULT
+            
             time_between_trades_avg_secs = my_utils.average_timedelta(time_between_trades)
             time_between_trades_max_secs = my_utils.max_timedelta(time_between_trades)
             intertrade_time_avg_color = Color.WARNING if time_between_trades_avg_secs < timedelta(seconds=60) else Color.DEFAULT
-            streak_tradespermin_color = Color.WARNING if streak_tracker.loss_trades_per_minute() >= 0.4 else Color.CRITICAL if streak_tracker.loss_trades_per_minute() >= 1 else Color.DEFAULT # 0.4 is 2 trades in 5 mins
             
+            streak_tradespermin_color = Color.WARNING if streak_tracker.loss_trades_per_minute() >= 0.4 else Color.CRITICAL if streak_tracker.loss_trades_per_minute() >= 1 else Color.DEFAULT # 0.4 is 2 trades in 5 mins
+            contracts_color = Color.CRITICAL if total_buy_contracts >= 60 else Color.WARNING if total_buy_contracts >= 40 else Color.DEFAULT
+
             trading_stats = [
                 {"Trades": [f'{completed_trades}', f'{overtrade_color}']},
                 {"Win Rate": [f'{win_rate:.0f}%', f'{winrate_color}']},
                 {"Profit Factor": [f'{profit_factor:.01f}', f'{profitfactor_color}']},
                 {"Trades L/S": [f'{total_long_trades} / {total_short_trades}']},
+                {"Scaled Losses": [f'{int(loss_scaled_count):,}', f'{loss_scaled_count_color}']},
                 {"": [f'']},
                 {"Streak": [f'{streak_tracker.streak:+}', f'{losing_streak_color}']},
                 {"Streak Loss Freq": [f'{streak_tracker.loss_trades_per_minute()} trades/min', f'{streak_tradespermin_color}']},
                 {"Streak Loss Mix": [f'{streak_tracker.get_loss_mix()}', f'{losing_streak_color}']},
+                {"Streak Loss Avg Size": [f'{streak_tracker.get_avg_size_of_current_streak():.01f}']},
+                {"Streak Loss Max Size": [f'{streak_tracker.get_max_size_of_current_streak()}']},
                 {"Best/Worst Streak": [f'{streak_tracker.best_streak:+} / {streak_tracker.worst_streak:+}']},
                 {"": [f'']},
                 {"Net P/L": [f'${int(total_profit_or_loss):,}', f'{pnl_color}']},
@@ -238,15 +246,14 @@ def compute_trade_stats(fill_data, es_contract_value):
                 {"": [f'']},
                 {"Open Size": [f'{int(position_size)}', f'{open_size_color}']},
                 {"Max Loss Size": [f'{int(loss_max_size)}', f'{loss_max_size_color}']},
-                {"Scaled Losses": [f'{int(loss_scaled_count):,}', f'{loss_scaled_count_color}']},
                 {"": [f'']},
-                {"Duration Avg W/L": [f'{my_utils.format_timedelta(win_avg_secs)} / {my_utils.format_timedelta(loss_avg_secs)}', f'{avg_duration_color}']},
-                {"Duration Max W/L": [f'{my_utils.format_timedelta(win_max_secs)} / {my_utils.format_timedelta(loss_max_secs)}', f'{max_duration_color}']},
                 {"InterTrade Avg": [f'{my_utils.format_timedelta(time_between_trades_avg_secs)}', f'{intertrade_time_avg_color}']},
                 {"InterTrade Max": [f'{my_utils.format_timedelta(time_between_trades_max_secs)}']},
+                {"Duration Avg W/L": [f'{my_utils.format_timedelta(win_avg_secs)} / {my_utils.format_timedelta(loss_avg_secs)}', f'{avg_duration_color}']},
+                {"Duration Max W/L": [f'{my_utils.format_timedelta(win_max_secs)} / {my_utils.format_timedelta(loss_max_secs)}', f'{max_duration_color}']},
                 {"": [f'']},
                 {"Orders L/S": [f'{total_buys} / {total_sells}']},
-                {"Contracts L/S": [f'{total_buy_contracts} / {total_sell_contracts}']},
+                {"Contracts L/S": [f'{total_buy_contracts} / {total_sell_contracts}', f'{contracts_color}']},
                 {"": [f'']},
                 {"Last Updated": [f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}']},
                 # {"Account": f'{account_name}'}
@@ -404,7 +411,7 @@ contract_value = 50
 directory_path = "/Users/ryangaraygay/Library/MotiveWave/output/"  # Replace with your directory path
 auto_refresh_ms = 30000 #60000
 opacity = 1.0 #0.85
-button_row_index_start = 29 # fixed so we don't have to window adjust when refreshing and some accounts have no fills (and therefore no stats)
+button_row_index_start = 31 # fixed so we don't have to window adjust when refreshing and some accounts have no fills (and therefore no stats)
 
 if __name__ == "__main__":
     filepath = get_latest_output_file(directory_path)
@@ -421,8 +428,6 @@ if __name__ == "__main__":
 
 # TODO
 ## metrics
-#   long / short should be based on individual fills but per first entry in trade group
-#   contracts warning color if > 40
 #   open trade duration (time since last first entry) - (yellow) we should let our winners run - put in duration section
 
 ## more features
