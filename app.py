@@ -88,6 +88,10 @@ def compute_trade_stats(fill_data, es_contract_value):
             ]
             account_trading_stats[no_fill_account] = trading_stats
 
+        # # test specific accounts only
+        # account_names_with_fills.clear()
+        # account_names_with_fills.add("account-name-here")
+
         for account_name in account_names_with_fills:
             grouped_trades = defaultdict(list)
             completed_trades = 0
@@ -113,14 +117,18 @@ def compute_trade_stats(fill_data, es_contract_value):
 
             min_time = datetime.max
             max_time = datetime.min
+            last_exit_time = datetime.max
             loss_duration = list()
             win_duration = list()
-
             entry_is_long = True
+            time_between_trades = list()
 
             for fill in sorted_fill:
                 if len(grouped_trades) == 0:
                     entry_is_long = "BUY" in fill.order_type
+                    if completed_trades > 0: # start only when there is at least one
+                        duration_since_last_trade = fill.fill_time - last_exit_time
+                        time_between_trades.append(duration_since_last_trade)
 
                 grouped_trades[fill.order_type].append(fill)
                 # print(grouped_trades)
@@ -150,7 +158,7 @@ def compute_trade_stats(fill_data, es_contract_value):
                     max_time = max(max_time, trade.fill_time)
 
                 position_size = buy_qty - sell_qty
-                if len(grouped_trades) >=2 and position_size == 0:
+                if len(grouped_trades) >=2 and position_size == 0: # trade completed
                     completed_trades += 1
                     completed_profit_loss = (sell_total_value - buy_total_value) * es_contract_value
                     total_profit_or_loss += completed_profit_loss
@@ -161,8 +169,9 @@ def compute_trade_stats(fill_data, es_contract_value):
                     losses += 0 if is_win else abs(completed_profit_loss)
 
                     max_realized_drawdown = min(total_profit_or_loss, max_realized_drawdown)
-                    
                     duration = max_time - min_time
+                    last_exit_time = max_time
+                    
                     if not is_win:
                         loss_max_size = max(loss_max_size, buy_qty) # can be sell_qty since completed trades have equal sell and buy qty
                         loss_max_value = min(loss_max_value, completed_profit_loss)
@@ -198,19 +207,23 @@ def compute_trade_stats(fill_data, es_contract_value):
 
             loss_avg_secs = my_utils.average_timedelta(loss_duration)
             loss_max_secs = my_utils.max_timedelta(loss_duration)
-            loss_max_secs_color = Color.WARNING if loss_max_secs.total_seconds() > 300 else Color.DEFAULT
             win_avg_secs = my_utils.average_timedelta(win_duration)
             win_max_secs = my_utils.max_timedelta(win_duration)
+            avg_duration_color = Color.WARNING if win_avg_secs < loss_avg_secs else Color.DEFAULT
+            max_duration_color = Color.WARNING if win_max_secs < loss_max_secs else Color.DEFAULT
+            time_between_trades_avg_secs = my_utils.average_timedelta(time_between_trades)
+            time_between_trades_max_secs = my_utils.max_timedelta(time_between_trades)
+            intertrade_time_avg_color = Color.WARNING if time_between_trades_avg_secs < timedelta(seconds=60) else Color.DEFAULT
             
             trading_stats = [
                 {"Trades": [f'{completed_trades}', f'{overtrade_color}']},
                 {"Win Rate": [f'{win_rate:.0f}%', f'{winrate_color}']},
                 {"Profit Factor": [f'{profit_factor:.01f}', f'{profitfactor_color}']},
-                {"Long / Short Trades": [f'{total_buys} / {total_sells}']},
+                {"Long/Short Trades": [f'{total_buys} / {total_sells}']},
                 {"": [f'']},
                 {"Streak": [f'{streak_tracker.streak:+}', f'{losing_streak_color}']},
                 {"Streak Loss Mix": [f'{streak_tracker.get_loss_mix()}', f'{losing_streak_color}']},
-                {"Best / Worst Streak": [f'{streak_tracker.best_streak:+} / {streak_tracker.worst_streak:+}']},
+                {"Best/Worst Streak": [f'{streak_tracker.best_streak:+} / {streak_tracker.worst_streak:+}']},
                 {"": [f'']},
                 {"Net P/L": [f'${int(total_profit_or_loss):,}', f'{pnl_color}']},
                 {"Max Drawdown": [f'${int(max_realized_drawdown):,}', f'{max_drawdown_color}']},
@@ -220,12 +233,12 @@ def compute_trade_stats(fill_data, es_contract_value):
                 {"Open Size": [f'{int(position_size)}', f'{open_size_color}']},
                 {"Max Loss Size": [f'{int(loss_max_size)}', f'{loss_max_size_color}']},
                 {"": [f'']},
-                {"Loss Duration Avg": [f'{my_utils.format_timedelta(loss_avg_secs)}']},
-                {"Loss Duration Max": [f'{my_utils.format_timedelta(loss_max_secs)}', f'{loss_max_secs_color}']},
-                {"Win Duration Avg": [f'{my_utils.format_timedelta(win_avg_secs)}']},
-                {"Win Duration Max": [f'{my_utils.format_timedelta(win_max_secs)}']},
+                {"Duration Avg W/L": [f'{my_utils.format_timedelta(win_avg_secs)} / {my_utils.format_timedelta(loss_avg_secs)}', f'{avg_duration_color}']},
+                {"Duration Max W/L": [f'{my_utils.format_timedelta(win_max_secs)} / {my_utils.format_timedelta(loss_max_secs)}', f'{max_duration_color}']},
+                {"InterTrade Avg": [f'{my_utils.format_timedelta(time_between_trades_avg_secs)}', f'{intertrade_time_avg_color}']},
+                {"InterTrade Max": [f'{my_utils.format_timedelta(time_between_trades_max_secs)}']},
                 {"": [f'']},
-                {"Contracts": [f'{total_buy_contracts} / {total_sell_contracts}']},
+                {"Contracts L/S": [f'{total_buy_contracts} / {total_sell_contracts}']},
                 {"Last Updated": [f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}']},
                 # {"Account": f'{account_name}'}
             ]
@@ -329,7 +342,6 @@ def create_stats_window_pyqt6(account_trading_stats):
     dropdown.currentTextChanged.connect(dropdown_changed)
     dropdown_changed(sorted_keys[0])
     
-    button_row_index_start = 26 # fixed so we don't have to window adjust when refreshing and some accounts have no fills (and therefore no stats)
     layout.addWidget(refresh_button, button_row_index_start, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
     layout.addWidget(pause_button, button_row_index_start + 1, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
     layout.addWidget(close_button, button_row_index_start + 2, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
@@ -382,6 +394,7 @@ contract_value = 50
 directory_path = "/Users/ryangaraygay/Library/MotiveWave/output/"  # Replace with your directory path
 auto_refresh_ms = 30000 #60000
 opacity = 1.0 #0.85
+button_row_index_start = 28 # fixed so we don't have to window adjust when refreshing and some accounts have no fills (and therefore no stats)
 
 if __name__ == "__main__":
     filepath = get_latest_output_file(directory_path)
@@ -398,17 +411,16 @@ if __name__ == "__main__":
 
 # TODO
 ## optional metrics (only if not computational expensive and have time to develop)
-#   average time between trades (exit to next entry))
+#   losing streak (total duration, avg intra-trade time) - very good indication of tilt
 #   open trade duration (time since last first entry) - (yellow) we should let our winners run
-#   L/S mix for best and worst streak
 
 ## more features
 # alert
+#   recommended actions based on stats - display somehow (ensure relevancy/frequency)
 #   pause trading when selected account has losing streak
-#       but first think through how it will work
+#       but first think through how it will work (not unitentionally disruptive/nuisance)
 #       ensure it does not disable on every refresh of tradestats
 #       and after a break, we still have a losing streak - so do we snooze disable for N minutes?
-#   recommended actions based on stats - display somehow
 # handle the ALL stats case (multi-account view)
 # dropdown selection for which file
 # overlay even to fullscreen window
