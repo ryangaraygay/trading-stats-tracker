@@ -25,6 +25,19 @@ class Color:
     
 account_trading_stats = {}
 existing_fill_count = 0
+account_names_loaded = list()
+
+def get_account_names(file_path):
+    account_names = set()
+    pattern = r"ACCOUNT:\s*(\S+)\s+fcmId:"
+    with open(file_path, 'r') as file:
+        for line in file:
+            match = re.search(pattern, line)
+            if match:
+                account_name = match.group(1)
+                account_names.add(account_name)
+    global account_names_loaded
+    account_names_loaded = sorted(list(account_names))
 
 def get_fills(file_path, contract_symbol):
     fill_data = []
@@ -61,13 +74,21 @@ def get_fills(file_path, contract_symbol):
 
 def compute_trade_stats(fill_data, es_contract_value):
     if fill_data:
-        # get list of AccountNames
-        unique_account_names = set()
+        # get list of AccountNames in fill
+        account_names_with_fills = set()
         for item in fill_data:
-            unique_account_names.add(item.account_name)
-        # print(unique_account_names)
+            account_names_with_fills.add(item.account_name)
+        # print(account_names_with_fills)
 
-        for account_name in unique_account_names:
+        account_names_no_fills = [item for item in account_names_loaded if item not in account_names_with_fills]
+        for no_fill_account in account_names_no_fills:
+            trading_stats = [
+                {"Trades": [f'0']},
+                {"Last Updated": [f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}']},
+            ]
+            account_trading_stats[no_fill_account] = trading_stats
+
+        for account_name in account_names_with_fills:
             grouped_trades = defaultdict(list)
             completed_trades = 0
             total_buys = 0
@@ -304,14 +325,13 @@ def create_stats_window_pyqt6(account_trading_stats):
                     value_label.setFont(font)
                     layout.addWidget(value_label, row_index, 1)
                     row_index += 1
-        return row_index
+        layout.addWidget(refresh_button, row_index, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(pause_button, row_index + 1, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(close_button, row_index + 2, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
+        window.adjustSize()
 
     dropdown.currentTextChanged.connect(dropdown_changed)
-    ri = dropdown_changed(sorted_keys[0])
-    layout.addWidget(refresh_button, ri, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
-    layout.addWidget(pause_button, ri + 1, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
-    layout.addWidget(close_button, ri + 2, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
-    window.adjustSize()
+    dropdown_changed(sorted_keys[0])
     
     window.show()
 
@@ -363,26 +383,18 @@ opacity = 1.0 #0.85
 
 if __name__ == "__main__":
     filepath = get_latest_output_file(directory_path)
+    # filepath = "/Users/ryangaraygay/Library/MotiveWave/output/output (Mar-27 203706).txt" # some accounts with no fills
     # filepath = "/Users/ryangaraygay/Library/MotiveWave/output/output (Mar-27 062404).txt"
     # print(filepath)
+    get_account_names(filepath)
     fill_data = get_fills(filepath, contract_symbol)
     ats = compute_trade_stats(fill_data, contract_value)
     if len(ats) > 0:
         create_stats_window_pyqt6(ats)
     else:
-        print('no fills found. loading test file')
-        # filepath = "/Users/ryangaraygay/Library/MotiveWave/output/output (Mar-27 062404).txt"
-        # fill_data = get_fills(filepath, contract_symbol)
-        # ats = compute_trade_stats(fill_data, contract_value)
-        # if len(ats) > 0:
-        #     create_stats_window_pyqt6(ats)
-        # else:
-        #     print('test file did not contain any fills either')
+        print('no fills found')
 
 # TODO
-# handle case where there are no trades for some account to start the day yet (dropdown + stats shouldn't break)
-# allow test mode (some hardcoded input file)
-
 ## optional metrics (only if not computational expensive and have time to develop)
 #   average time between trades (exit to next entry))
 #   open trade duration (time since last first entry) - (yellow) we should let our winners run
