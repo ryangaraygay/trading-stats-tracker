@@ -325,14 +325,16 @@ def create_stats_window_pyqt6(account_trading_stats):
                     value_label.setFont(font)
                     layout.addWidget(value_label, row_index, 1)
                     row_index += 1
-        layout.addWidget(refresh_button, row_index, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(pause_button, row_index + 1, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(close_button, row_index + 2, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
-        window.adjustSize()
-
+    
     dropdown.currentTextChanged.connect(dropdown_changed)
     dropdown_changed(sorted_keys[0])
     
+    button_row_index_start = 26 # fixed so we don't have to window adjust when refreshing and some accounts have no fills (and therefore no stats)
+    layout.addWidget(refresh_button, button_row_index_start, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
+    layout.addWidget(pause_button, button_row_index_start + 1, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
+    layout.addWidget(close_button, button_row_index_start + 2, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
+    window.adjustSize()
+
     window.show()
 
     timer = QTimer()
