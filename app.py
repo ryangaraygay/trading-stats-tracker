@@ -245,9 +245,9 @@ def compute_trade_stats(fill_data, es_contract_value):
                 {"Streak Loss Max Size": [f'{streak_tracker.get_max_size_of_current_streak()}']},
                 {"Best/Worst Streak": [f'{streak_tracker.best_streak:+} / {streak_tracker.worst_streak:+}']},
                 {"": [f'']},
-                {"Net P/L": [f'${int(total_profit_or_loss):,}', f'{pnl_color}']},
-                {"Max Drawdown": [f'${int(max_realized_drawdown):,}', f'{max_drawdown_color}']},
-                {"Max Loss": [f'${int(loss_max_value):,}', f'{max_loss_color}']},
+                {"Net P/L": [f'{int(total_profit_or_loss):,}', f'{pnl_color}']},
+                {"Max Drawdown": [f'{int(max_realized_drawdown):,}', f'{max_drawdown_color}']},
+                {"Max Loss": [f'{int(loss_max_value):,}', f'{max_loss_color}']},
                 {"": [f'']},
                 {"Open Size": [f'{int(position_size)}', f'{open_size_color}']},
                 {"Open Trade Entry": [f'{open_entry_time}']},
@@ -294,10 +294,12 @@ def create_stats_window_pyqt6(account_trading_stats):
 
     layout = QGridLayout(window)  # Set layout on the window directly
 
+    font_name = "Courier New" #Andale Mono, Menlo
+
     dropdown = QComboBox()
     sorted_keys = sorted(list(account_trading_stats.keys()))
     dropdown.addItems(sorted_keys)
-    dropdown_font = QFont()
+    dropdown_font = QFont(font_name)
     dropdown_font.setPointSize(27)
     dropdown.setFont(dropdown_font)
     dropdown.setStyleSheet("background-color: gray; color: black;")
@@ -348,7 +350,7 @@ def create_stats_window_pyqt6(account_trading_stats):
                     key_label = QLabel(key)
                     key_label.setStyleSheet("border: 1px solid black; color: white;")
                     key_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-                    font = QFont()
+                    font = QFont(font_name)
                     font.setPointSize(27)
                     key_label.setFont(font)
                     layout.addWidget(key_label, row_index, 0)
@@ -356,7 +358,7 @@ def create_stats_window_pyqt6(account_trading_stats):
                     value_label = QLabel(str(value_color[0]))
                     color = value_color[1] if len(value_color) > 1 else Color.DEFAULT
                     value_label.setStyleSheet(f"border: 1px solid black; color: {color};")
-                    font = QFont()
+                    font = QFont(font_name)
                     font.setPointSize(27)
                     value_label.setFont(font)
                     layout.addWidget(value_label, row_index, 1)
