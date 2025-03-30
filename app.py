@@ -213,7 +213,7 @@ def compute_trade_stats(fill_data, es_contract_value):
             time_between_trades_avg_secs = my_utils.average_timedelta(time_between_trades)
             time_between_trades_max_secs = my_utils.max_timedelta(time_between_trades)
 
-            # alert conditions
+            # alert conditions, color change only if msg is empty
             trade_conditions = [
                 {"expr": lambda x: x > 20, "color": Color.CRITICAL, "msg": "Stop. You are overtrading."},
                 {"expr": lambda x: x > 10, "color": Color.WARNING, "msg": "Slow down. Too many trades."}
@@ -222,18 +222,18 @@ def compute_trade_stats(fill_data, es_contract_value):
             pnl_conditions = [
                 {"expr": lambda x: x < -2000, "color": Color.CRITICAL, "msg": "Stop. You have lost too much."},
                 {"expr": lambda x: x < -1000, "color": Color.WARNING, "msg": "Slow down. Sizable losses."},
-                {"expr": lambda x: x >= 1000, "color": Color.CAUTION, "msg": "Wind down. Protect your gains."}
+                {"expr": lambda x: x >= 1000, "color": Color.OK, "msg": "Wind down. Protect your gains."}
             ]
 
             winrate_conditions = [
                 {"expr": lambda x: x < 20, "color": Color.CRITICAL, "msg": "Stop. Win Rate is too low."},
                 {"expr": lambda x: x < 40, "color": Color.WARNING, "msg": "Slow down. Win Rate is low."},
-
             ]
 
             profitfactor_conditions = [
-                {"expr": lambda x: x < 0.5, "color": Color.CRITICAL, "msg": "Stop. Profit Factor is too low."},
-                {"expr": lambda x: x < 1, "color": Color.WARNING, "msg": "Slow down. Profit Factor is low."},
+                {"expr": lambda x: x < 0.5, "color": Color.CRITICAL, "msg": "Stop. Profit Factor is very low."},
+                {"expr": lambda x: x < 1.2, "color": Color.WARNING, "msg": ""},
+                {"expr": lambda x: x > 1.5, "color": Color.OK, "msg": ""},
             ]
 
             losingstreak_conditions = [
@@ -259,11 +259,11 @@ def compute_trade_stats(fill_data, es_contract_value):
             loss_max_size_color, loss_max_size_msg, loss_max_size_critical = evaluate_conditions(loss_max_size, loss_max_size_conditions)
             loss_scaled_count_color, loss_scaled_count_msg, loss_scaled_count_critical = evaluate_conditions(loss_scaled_count, loss_scaled_count_conditions)
             
-            # color change only conditions        
+            # color change only (can be converted to above approach too with resulting empty msg but only if there's benefit)  
             streak_interval_color = Color.CRITICAL if streak_tracker.loss_trade_interval() < 2 else Color.WARNING if streak_tracker.loss_trade_interval() < 4 else Color.DEFAULT
             max_drawdown_color = Color.WARNING if max_realized_drawdown < -1000 else Color.DEFAULT
             max_loss_color = Color.WARNING if loss_max_value <= -900 else Color.DEFAULT
-            open_size_color = Color.WARNING if abs(position_size) > 3 else Color.DEFAULT
+            open_size_color = Color.CAUTION if abs(position_size) > 3 else Color.DEFAULT
             avg_duration_color = Color.WARNING if win_avg_secs < loss_avg_secs else Color.DEFAULT
             max_duration_color = Color.WARNING if win_max_secs < loss_max_secs else Color.DEFAULT
             intertrade_time_avg_color = Color.WARNING if time_between_trades_avg_secs < timedelta(seconds=60) else Color.DEFAULT
@@ -278,11 +278,11 @@ def compute_trade_stats(fill_data, es_contract_value):
                 {"Scaled Losses": [f'{int(loss_scaled_count):,}', f'{loss_scaled_count_color}']},
                 {"": [f'']},
                 {"Streak": [f'{streak_tracker.streak:+}', f'{losing_streak_color}']},
-                {"Streak Loss Interval": [f'{streak_tracker.loss_trade_interval()} min/trade', f'{streak_interval_color}']},
-                {"Streak Loss Mix": [f'{streak_tracker.get_loss_mix()}', f'{losing_streak_color}']},
-                {"Streak Loss Avg Size": [f'{streak_tracker.get_avg_size_of_current_streak():.01f}']},
-                {"Streak Loss Max Size": [f'{streak_tracker.get_max_size_of_current_streak()}']},
-                {"Best/Worst Streak": [f'{streak_tracker.best_streak:+} / {streak_tracker.worst_streak:+}']},
+                {"Mix": [f'{streak_tracker.get_loss_mix()}', f'{losing_streak_color}']},
+                {"Interval": [f'{streak_tracker.loss_trade_interval()} min/trade', f'{streak_interval_color}']},
+                {"Avg Size": [f'{streak_tracker.get_avg_size_of_current_streak():.01f}']},
+                {"Max Size": [f'{streak_tracker.get_max_size_of_current_streak()}']},
+                {"Best/Worst": [f'{streak_tracker.best_streak:+} / {streak_tracker.worst_streak:+}']},
                 {"": [f'']},
                 {"Profit/Loss": [f'{int(total_profit_or_loss):,}', f'{pnl_color}']},
                 {"Max Drawdown": [f'{int(max_realized_drawdown):,}', f'{max_drawdown_color}']},
@@ -291,6 +291,7 @@ def compute_trade_stats(fill_data, es_contract_value):
                 {"Open Size": [f'{int(position_size)}', f'{open_size_color}']},
                 {"Open Trade Entry": [f'{open_entry_time}']},
                 {"Max Loss Size": [f'{int(loss_max_size)}', f'{loss_max_size_color}']},
+                {"Last Trade Exit": [f'{last_exit_time.strftime("%m/%d %H:%M")}']},
                 {"": [f'']},
                 {"InterTrade Avg": [f'{my_utils.format_timedelta(time_between_trades_avg_secs)}', f'{intertrade_time_avg_color}']},
                 {"InterTrade Max": [f'{my_utils.format_timedelta(time_between_trades_max_secs)}']},
@@ -300,7 +301,7 @@ def compute_trade_stats(fill_data, es_contract_value):
                 {"Orders L/S": [f'{total_buys} / {total_sells}']},
                 {"Contracts L/S": [f'{total_buy_contracts} / {total_sell_contracts}']},
                 {"": [f'']},
-                {"Last Updated": [f'{datetime.now().strftime("%m-%d %H:%M")}']},
+                {"Last Updated": [f'{datetime.now().strftime("%m/%d %H:%M")}']},
                 # {"Account": f'{account_name}'}
             ]
 
@@ -503,7 +504,7 @@ contract_value = 50
 directory_path = "/Users/ryangaraygay/Library/MotiveWave/output/"  # Replace with your directory path
 auto_refresh_ms = 30000 #60000
 opacity = 1
-button_row_index_start = 32 # fixed so we don't have to window adjust when refreshing and some accounts have no fills (and therefore no stats)
+button_row_index_start = 33 # fixed so we don't have to window adjust when refreshing and some accounts have no fills (and therefore no stats)
 
 if __name__ == "__main__":
     filepath = get_latest_output_file(directory_path)
