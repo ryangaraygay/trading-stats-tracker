@@ -206,36 +206,72 @@ def compute_trade_stats(fill_data, es_contract_value):
 
             win_rate = 0 if completed_trades == 0 else total_wins/completed_trades * 100
             profit_factor = 2 if losses == 0 else gains/losses
-            
-            overtrade_color = Color.CRITICAL if completed_trades > 20 else Color.WARNING if completed_trades > 10 else Color.DEFAULT
-            overtrade_message = "High Trade Count. Consider Stopping" if completed_trades > 20 else "High Trade Count. Wind down" if completed_trades > 10 else ""
-
-            pnl_color = Color.CRITICAL if total_profit_or_loss < -1000 else Color.OK if total_profit_or_loss >= 1000 else Color.DEFAULT
-            pnl_message = "Heavy Loss. Consider Stopping" if total_profit_or_loss < -1000 else "Sizable Gain. Wind down" if total_profit_or_loss >= 1000 else ""
-
-            winrate_color = Color.CRITICAL if win_rate < 20 else Color.WARNING if win_rate < 40 else Color.DEFAULT
-            profitfactor_color = Color.CRITICAL if profit_factor < 0.5 else Color.WARNING if profit_factor < 1 else Color.DEFAULT
-            
-            losing_streak_color = Color.CRITICAL if streak_tracker.streak <= -5 else Color.WARNING if streak_tracker.streak <=-2 else Color.DEFAULT
-            
-            max_drawdown_color = Color.WARNING if max_realized_drawdown < -1000 else Color.DEFAULT
-            max_loss_color = Color.WARNING if loss_max_value <= -900 else Color.DEFAULT
-            open_size_color = Color.WARNING if abs(position_size) > 3 else Color.DEFAULT
-            loss_max_size_color = Color.CRITICAL if loss_max_size >= 10 else Color.WARNING if loss_max_size >= 6 else Color.DEFAULT
-            loss_scaled_count_color = Color.CRITICAL if loss_scaled_count >= 5 else Color.WARNING if loss_scaled_count >= 3 else Color.DEFAULT
-
             loss_avg_secs = my_utils.average_timedelta(loss_duration)
             loss_max_secs = my_utils.max_timedelta(loss_duration)
             win_avg_secs = my_utils.average_timedelta(win_duration)
             win_max_secs = my_utils.max_timedelta(win_duration)
-            avg_duration_color = Color.WARNING if win_avg_secs < loss_avg_secs else Color.DEFAULT
-            max_duration_color = Color.WARNING if win_max_secs < loss_max_secs else Color.DEFAULT
-            
             time_between_trades_avg_secs = my_utils.average_timedelta(time_between_trades)
             time_between_trades_max_secs = my_utils.max_timedelta(time_between_trades)
-            intertrade_time_avg_color = Color.WARNING if time_between_trades_avg_secs < timedelta(seconds=60) else Color.DEFAULT
+
+            # alert message only for those with critical
+            trade_conditions = [
+                {"expr": lambda x: x > 20, "color": Color.CRITICAL, "msg": "Stop. You are overtrading."},
+                {"expr": lambda x: x > 10, "color": Color.WARNING, "msg": "Slow down. Too many trades."}
+            ]
+
+            pnl_conditions = [
+                {"expr": lambda x: x < -2000, "color": Color.CRITICAL, "msg": "Stop. You have lost too much."},
+                {"expr": lambda x: x < -1000, "color": Color.WARNING, "msg": "Slow down. Sizable losses."},
+                {"expr": lambda x: x >= 1000, "color": Color.CAUTION, "msg": "Wind down. Protect your gains."}
+            ]
+
+            winrate_conditions = [
+                {"expr": lambda x: x < 20, "color": Color.CRITICAL, "msg": "Stop. Win Rate is too low."},
+                {"expr": lambda x: x < 40, "color": Color.WARNING, "msg": "Slow down. Win Rate is low."},
+
+            ]
+
+            profitfactor_conditions = [
+                {"expr": lambda x: x < 0.5, "color": Color.CRITICAL, "msg": "Stop. Profit Factor is too low."},
+                {"expr": lambda x: x < 1, "color": Color.WARNING, "msg": "Slow down. Profit Factor is low."},
+            ]
+
+            losingstreak_conditions = [
+                {"expr": lambda x: x <= -5, "color": Color.CRITICAL, "msg": "Stop. Profit Factor is too low."},
+                {"expr": lambda x: x <= -2, "color": Color.WARNING, "msg": "Slow down. Profit Factor is low."},
+            ]
+
+            losingstreak_tradespermin_conditions = [
+                {"expr": lambda x: x >= 1, "color": Color.CRITICAL, "msg": "Stop. Take a break and space your trades."},
+                {"expr": lambda x: x >= 0.4, "color": Color.WARNING, "msg": "Slow down. Space out your trades."},
+            ]
+
+            loss_max_size_conditions = [
+                {"expr": lambda x: x >= 10, "color": Color.CRITICAL, "msg": "Stop. Take a break then size down."},
+                {"expr": lambda x: x >= 6, "color": Color.WARNING, "msg": "Slow down. Size down."},
+            ]
             
-            streak_tradespermin_color = Color.WARNING if streak_tracker.loss_trades_per_minute() >= 0.4 else Color.CRITICAL if streak_tracker.loss_trades_per_minute() >= 1 else Color.DEFAULT # 0.4 is 2 trades in 5 mins
+            loss_scaled_count_conditions = [
+                {"expr": lambda x: x >= 5, "color": Color.CRITICAL, "msg": "Stop. Take a break then scale up winners only."},
+                {"expr": lambda x: x >= 3, "color": Color.WARNING, "msg": "Slow down. Scale up winners only."},
+            ]
+
+            winrate_color, winrate_msg, winrate_critical = evaluate_conditions(win_rate, winrate_conditions)
+            overtrade_color, overtrade_msg, overtrade_critical = evaluate_conditions(completed_trades, trade_conditions)
+            pnl_color, pnl_msg, pnl_critical = evaluate_conditions(total_profit_or_loss, pnl_conditions)
+            profitfactor_color, profitfactor_msg, profitfactor_critical = evaluate_conditions(profit_factor, profitfactor_conditions)
+            losing_streak_color, losing_streak_msg, losingstreak_critical = evaluate_conditions(streak_tracker.streak, losingstreak_conditions)
+            streak_tradespermin_color, streak_tradespermin_msg, streak_tradespermin_critical = evaluate_conditions(streak_tracker.loss_trades_per_minute(), losingstreak_tradespermin_conditions)
+            loss_max_size_color, loss_max_size_msg, loss_max_size_critical = evaluate_conditions(loss_max_size, loss_max_size_conditions)
+            loss_scaled_count_color, loss_scaled_count_msg, loss_scaled_count_critical = evaluate_conditions(loss_scaled_count, loss_scaled_count_conditions)
+            
+            # those with only warning and less will change color but no alerts            
+            max_drawdown_color = Color.WARNING if max_realized_drawdown < -1000 else Color.DEFAULT
+            max_loss_color = Color.WARNING if loss_max_value <= -900 else Color.DEFAULT
+            open_size_color = Color.WARNING if abs(position_size) > 3 else Color.DEFAULT
+            avg_duration_color = Color.WARNING if win_avg_secs < loss_avg_secs else Color.DEFAULT
+            max_duration_color = Color.WARNING if win_max_secs < loss_max_secs else Color.DEFAULT
+            intertrade_time_avg_color = Color.WARNING if time_between_trades_avg_secs < timedelta(seconds=60) else Color.DEFAULT
 
             open_entry_time = entry_time.strftime("%m-%d %H:%M") if position_size > 0 else ''
 
@@ -276,19 +312,48 @@ def compute_trade_stats(fill_data, es_contract_value):
             # print(trading_stats)
             account_trading_stats[account_name] = trading_stats
 
-            alert_duration_default = 5
-            alert_min_interval_secs_default = 0
+            alert_duration_default = 30
+            alert_min_interval_secs_default = 600 # 10 mins
+            alerts_data = [
+                (overtrade_msg, False, overtrade_critical),
+                (pnl_msg, False, pnl_critical),
+                (winrate_msg, False, winrate_critical),
+                (profitfactor_msg, False, profitfactor_critical),
+                (losing_streak_msg, False, losingstreak_critical),
+                (streak_tradespermin_msg, False, streak_tradespermin_critical),
+                (loss_max_size_msg, False, loss_max_size_critical),
+                (loss_scaled_count_msg, False, loss_scaled_count_critical),
+            ]
+
+            critical_alerts = []
+            non_critical_alerts = []
+
+            for msg, show_once, critical in alerts_data:
+                if msg:
+                    alert = AlertMessage(msg, account_name, alert_duration_default, show_once, alert_min_interval_secs_default)
+                    if critical:
+                        critical_alerts.append(alert)
+                    else:
+                        non_critical_alerts.append(alert)
 
             trading_alerts = []
-            if (len(overtrade_message) > 0):
-                trading_alerts.append(AlertMessage(overtrade_message, account_name, alert_duration_default, True, alert_min_interval_secs_default))
-            if (len(pnl_message) > 0):
-                trading_alerts.append(AlertMessage(pnl_message, account_name, alert_duration_default, False, 60000))
+            trading_alerts.extend(critical_alerts)
+            trading_alerts.extend(non_critical_alerts)
 
             # print(trading_alerts)
             account_trading_alerts[account_name] = trading_alerts
 
     return [ account_trading_stats, account_trading_alerts ]
+
+def evaluate_conditions(value, conditions):
+    for cond in conditions:
+        if isinstance(cond, dict):
+            if cond["expr"](value):
+                return cond["color"], cond["msg"], cond["color"] == Color.CRITICAL
+        elif isinstance(cond, tuple) and len(cond) == 3:
+            if cond[0](value):
+                return cond[1], cond[2], cond[1] == Color.CRITICAL
+    return Color.DEFAULT, "", False
 
 def pause_trading():
     """Pause trading functionality (empty implementation)."""
@@ -461,17 +526,11 @@ if __name__ == "__main__":
 
 # TODO
 ## more features
-# alert
-#   recommended actions based on stats - (ensure relevancy/frequency)
-#       simplify conditional+message for defining alerts
-#   pause trading when selected account has losing streak
-#       but first think through how it will work (not unitentionally disruptive/nuisance)
-#       ensure it does not disable on every refresh of tradestats
-#       and after a break, we still have a losing streak - so do we snooze disable for N minutes?
-# handle the ALL stats case (multi-account view)
-# dropdown selection for which file (or maybe even multi-select)
+#   handle the ALL stats case (multi-account view)
+#   dropdown selection for which file (or maybe even multi-select)
+#   limit to one instance running, alert if attempting to open more
 
 ## improvements
-# calculate average through the loop instead of lambda
-# profile and improve performance (so refresh freq can be higher)
-# clean-up and organize code
+#   calculate average through the loop instead of lambda
+#   profile and improve performance (so refresh freq can be higher)
+#   clean-up and organize code

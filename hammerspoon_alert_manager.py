@@ -14,7 +14,7 @@ class HammerspoonAlertManager:
     def _execute_hammerspoon_lua(self, lua_code: str):
         """Executes Lua code in Hammerspoon using hammerspoon_bridge with -c."""
         try:
-            print(f'lua {lua_code}')
+            # print(f'lua {lua_code}')
             hs_path = "/usr/local/bin/hs"
             subprocess.run([hs_path,'-c', lua_code], check=True)
         except subprocess.CalledProcessError as e:
@@ -59,7 +59,7 @@ class HammerspoonAlertManager:
 
             # Display the alert via hammerspoon_bridge
             # alert_customization = "{ }"
-            alert_customization = "{ fillColor = { red = 0, green = 255, blue = 255, alpha = 0.7 }, textColor = { white=0.1, alpha=1 }}"
+            alert_customization = "{ fillColor = { red = 0, green = 255, blue = 255, alpha = 0.7 }, textColor = { white=0.1, alpha=1 }, radius = 20}"
             lua_code = f'hs.alert.show("{message}", {alert_customization}, hs.screen.primaryScreen(), {duration_secs})'
             self._execute_hammerspoon_lua(lua_code)
 
