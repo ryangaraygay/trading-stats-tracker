@@ -213,7 +213,7 @@ def compute_trade_stats(fill_data, es_contract_value):
             time_between_trades_avg_secs = my_utils.average_timedelta(time_between_trades)
             time_between_trades_max_secs = my_utils.max_timedelta(time_between_trades)
 
-            # alert message only for those with critical
+            # alert conditions
             trade_conditions = [
                 {"expr": lambda x: x > 20, "color": Color.CRITICAL, "msg": "Stop. You are overtrading."},
                 {"expr": lambda x: x > 10, "color": Color.WARNING, "msg": "Slow down. Too many trades."}
@@ -237,13 +237,8 @@ def compute_trade_stats(fill_data, es_contract_value):
             ]
 
             losingstreak_conditions = [
-                {"expr": lambda x: x <= -5, "color": Color.CRITICAL, "msg": "Stop. Profit Factor is too low."},
-                {"expr": lambda x: x <= -2, "color": Color.WARNING, "msg": "Slow down. Profit Factor is low."},
-            ]
-
-            losingstreak_tradespermin_conditions = [
-                {"expr": lambda x: x >= 1, "color": Color.CRITICAL, "msg": "Stop. Take a break and space your trades."},
-                {"expr": lambda x: x >= 0.4, "color": Color.WARNING, "msg": "Slow down. Space out your trades."},
+                {"expr": lambda x: x <= -4, "color": Color.CRITICAL, "msg": "Stop. Extended losing streak."},
+                {"expr": lambda x: x <= -2, "color": Color.WARNING, "msg": "Slow down. Consecutive losses."},
             ]
 
             loss_max_size_conditions = [
@@ -261,11 +256,11 @@ def compute_trade_stats(fill_data, es_contract_value):
             pnl_color, pnl_msg, pnl_critical = evaluate_conditions(total_profit_or_loss, pnl_conditions)
             profitfactor_color, profitfactor_msg, profitfactor_critical = evaluate_conditions(profit_factor, profitfactor_conditions)
             losing_streak_color, losing_streak_msg, losingstreak_critical = evaluate_conditions(streak_tracker.streak, losingstreak_conditions)
-            streak_tradespermin_color, streak_tradespermin_msg, streak_tradespermin_critical = evaluate_conditions(streak_tracker.loss_trades_per_minute(), losingstreak_tradespermin_conditions)
             loss_max_size_color, loss_max_size_msg, loss_max_size_critical = evaluate_conditions(loss_max_size, loss_max_size_conditions)
             loss_scaled_count_color, loss_scaled_count_msg, loss_scaled_count_critical = evaluate_conditions(loss_scaled_count, loss_scaled_count_conditions)
             
-            # those with only warning and less will change color but no alerts            
+            # color change only conditions        
+            streak_interval_color = Color.CRITICAL if streak_tracker.loss_trade_interval() < 2 else Color.WARNING if streak_tracker.loss_trade_interval() < 4 else Color.DEFAULT
             max_drawdown_color = Color.WARNING if max_realized_drawdown < -1000 else Color.DEFAULT
             max_loss_color = Color.WARNING if loss_max_value <= -900 else Color.DEFAULT
             open_size_color = Color.WARNING if abs(position_size) > 3 else Color.DEFAULT
@@ -283,7 +278,7 @@ def compute_trade_stats(fill_data, es_contract_value):
                 {"Scaled Losses": [f'{int(loss_scaled_count):,}', f'{loss_scaled_count_color}']},
                 {"": [f'']},
                 {"Streak": [f'{streak_tracker.streak:+}', f'{losing_streak_color}']},
-                {"Streak Loss Freq": [f'{streak_tracker.loss_trades_per_minute()} trades/min', f'{streak_tradespermin_color}']},
+                {"Streak Loss Interval": [f'{streak_tracker.loss_trade_interval()} min/trade', f'{streak_interval_color}']},
                 {"Streak Loss Mix": [f'{streak_tracker.get_loss_mix()}', f'{losing_streak_color}']},
                 {"Streak Loss Avg Size": [f'{streak_tracker.get_avg_size_of_current_streak():.01f}']},
                 {"Streak Loss Max Size": [f'{streak_tracker.get_max_size_of_current_streak()}']},
@@ -312,7 +307,7 @@ def compute_trade_stats(fill_data, es_contract_value):
             # print(trading_stats)
             account_trading_stats[account_name] = trading_stats
 
-            alert_duration_default = 30
+            alert_duration_default = 20
             alert_min_interval_secs_default = 600 # 10 mins
             alerts_data = [
                 (overtrade_msg, False, overtrade_critical),
@@ -320,7 +315,6 @@ def compute_trade_stats(fill_data, es_contract_value):
                 (winrate_msg, False, winrate_critical),
                 (profitfactor_msg, False, profitfactor_critical),
                 (losing_streak_msg, False, losingstreak_critical),
-                (streak_tradespermin_msg, False, streak_tradespermin_critical),
                 (loss_max_size_msg, False, loss_max_size_critical),
                 (loss_scaled_count_msg, False, loss_scaled_count_critical),
             ]

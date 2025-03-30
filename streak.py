@@ -83,20 +83,19 @@ class Streak:
                 return f"{long_percentage:.0f}% long"
             else:
                 return f"{short_percentage:.0f}% short"
-            
-    def loss_trades_per_minute(self):
-        """
-        Calculates and returns the number of trades per minute during the streak.
-        """
+
+    def loss_trade_interval(self):
+        """Calculates and returns the average time interval (in minutes) between trades during the streak."""
         if self.streak == 0 or self.streak_start_time is None or self.streak_last_trade_time is None:
             return 0.00
 
         elapsed_time_secs = (self.streak_last_trade_time - self.streak_start_time).total_seconds() / 60
-        if elapsed_time_secs == 0:
+        if abs(self.streak) == 0:
             return 0.00
 
-        trades_per_min = abs(self.streak) / elapsed_time_secs
-        return round(trades_per_min, 2)
+        interval = elapsed_time_secs / abs(self.streak)
+        return round(interval, 2)
+
 
     def get_avg_size_of_current_streak(self):
         """
