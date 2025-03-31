@@ -315,6 +315,7 @@ def compute_trade_stats(fill_data, es_contract_value):
             account_trading_stats[account_name] = trading_stats
 
             alert_duration_default = 20
+            alert_duration_critical = 60
             alert_min_interval_secs_default = 600 # 10 mins
             alerts_data = [
                 (overtrade_msg, False, overtrade_critical),
@@ -332,7 +333,7 @@ def compute_trade_stats(fill_data, es_contract_value):
             # TODO lambda sort based on critical when adding trading_alerts to simplify
             for msg, show_once, critical in alerts_data:
                 if msg:
-                    alert = AlertMessage(msg, account_name, alert_duration_default, show_once, alert_min_interval_secs_default, critical)
+                    alert = AlertMessage(msg, account_name, alert_duration_critical if critical else alert_duration_default, show_once, alert_min_interval_secs_default, critical)
                     if critical:
                         critical_alerts.append(alert)
                     else:
@@ -365,18 +366,6 @@ def evaluate_conditions(value, conditions):
             if cond[0](value):
                 return cond[1], cond[2], cond[1] == Color.CRITICAL
     return Color.DEFAULT, "", False
-
-def pause_trading():
-    """Pause trading functionality (empty implementation)."""
-    keyboard = Controller()
-
-    keyboard.press(Key.cmd)
-    keyboard.press(Key.alt)
-    keyboard.press("d")
-
-    keyboard.release("d")
-    keyboard.release(Key.alt)
-    keyboard.release(Key.cmd)
     
 def create_stats_window_pyqt6(account_trading_stats):
     app = QApplication(sys.argv)
@@ -424,7 +413,6 @@ def create_stats_window_pyqt6(account_trading_stats):
         app.quit()
 
     refresh_button.clicked.connect(refresh_data)
-    pause_button.clicked.connect(pause_trading)
     close_button.clicked.connect(close_app)
 
     alert_manager = HammerspoonAlertManager()
@@ -471,8 +459,7 @@ def create_stats_window_pyqt6(account_trading_stats):
     dropdown_changed(sorted_keys[0])
     
     layout.addWidget(refresh_button, button_row_index_start, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
-    layout.addWidget(pause_button, button_row_index_start + 1, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
-    layout.addWidget(close_button, button_row_index_start + 2, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
+    layout.addWidget(close_button, button_row_index_start + 1, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
     window.adjustSize()
 
     window.show()
