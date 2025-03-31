@@ -67,7 +67,7 @@ class Streak:
         """
         Returns a string describing the composition of the losing streak.
         """
-        if self.streak >= 0:
+        if self.streak >= -1:
             return ""
 
         total_losses = abs(self.streak)
@@ -83,6 +83,12 @@ class Streak:
                 return f"{long_percentage:.0f}% long"
             else:
                 return f"{short_percentage:.0f}% short"
+    
+    def loss_trade_interval_str(self):
+        if self.streak < -1:
+            return f'{self.loss_trade_interval()} min/trade'
+        else:
+            return ""
 
     def loss_trade_interval(self):
         """Calculates and returns the average time interval (in minutes) between trades during the streak."""
@@ -96,6 +102,11 @@ class Streak:
         interval = elapsed_time_secs / abs(self.streak)
         return round(interval, 2)
 
+    def get_avg_size_of_current_streak_str(self):
+        if self.streak < -1:
+            return f'{self.get_avg_size_of_current_streak():.01f}'
+        else:
+            return ""
 
     def get_avg_size_of_current_streak(self):
         """
@@ -105,6 +116,12 @@ class Streak:
             return 0.00
 
         return self.total_trade_size / abs(self.streak)
+
+    def get_max_size_of_current_streak_str(self):
+        if self.streak < -1:
+            return self.get_max_size_of_current_streak()
+        else:
+            return ""
 
     def get_max_size_of_current_streak(self):
         """
