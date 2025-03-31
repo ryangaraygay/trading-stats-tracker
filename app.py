@@ -103,9 +103,13 @@ def compute_trade_stats(fill_data, es_contract_value):
             gains = 0
             losses = 0
             max_realized_drawdown = 0
+            max_realized_profit = 0
             loss_max_size = 0 # not individual orders but within a trade (group)
+            win_max_size = 0 # not individual orders but within a trade (group)
             loss_max_value = 0 # not individual orders but within a trade (group)
+            win_max_value = 0 # not individual orders but within a trade (group)
             loss_scaled_count = 0 # losses that involved multiple entries
+            win_scaled_count = 0 # wins that involved multiple entries
 
             streak_tracker = Streak()
 
@@ -122,11 +126,13 @@ def compute_trade_stats(fill_data, es_contract_value):
             entry_is_long = True
             time_between_trades = list()
             entry_time = datetime.max
+            first_entry_time = datetime.max
 
             for fill in sorted_fill:
                 if len(grouped_trades) == 0:
                     entry_is_long = "BUY" in fill.order_type
                     entry_time = fill.fill_time
+                    first_entry_time = min(first_entry_time, entry_time)
                     if completed_trades > 0: # start only when there is at least one
                         duration_since_last_trade = entry_time - last_exit_time
                         time_between_trades.append(duration_since_last_trade)
@@ -170,22 +176,23 @@ def compute_trade_stats(fill_data, es_contract_value):
                     losses += 0 if is_win else abs(completed_profit_loss)
 
                     max_realized_drawdown = min(total_profit_or_loss, max_realized_drawdown)
+                    max_realized_profit = max(total_profit_or_loss, max_realized_profit)
                     duration = max_time - min_time
                     last_exit_time = max_time
 
                     trade_size = int(buy_qty) # can be sell_qty since completed trades have equal sell and buy qty
+                    entries_in_trade_count = len(grouped_trades["Filled BUY" if entry_is_long else "Filled SELL"])
                     
                     if not is_win:
                         loss_max_size = max(loss_max_size, trade_size) 
                         loss_max_value = min(loss_max_value, completed_profit_loss)
-                        
                         loss_duration.append(duration)
-
-                        # scaled loss
-                        entries_in_trade_count = len(grouped_trades["Filled BUY" if entry_is_long else "Filled SELL"])
                         loss_scaled_count += 1 if entries_in_trade_count > 1 else 0
                     else:
+                        win_max_size = max(win_max_size, trade_size) 
+                        win_max_value = max(win_max_value, completed_profit_loss)
                         win_duration.append(duration)
+                        win_scaled_count += 1 if entries_in_trade_count > 1 else 0
                     
                     total_long_trades += 1 if entry_is_long else 0
                     total_short_trades += 1 if not entry_is_long else 0
@@ -198,8 +205,8 @@ def compute_trade_stats(fill_data, es_contract_value):
                     max_time = datetime.min
                     entry_time = datetime.max
 
-            win_rate = 0 if completed_trades == 0 else total_wins/completed_trades * 100
-            profit_factor = 2 if losses == 0 else gains/losses
+            win_rate = 50 if completed_trades == 0 else total_wins/completed_trades * 100
+            profit_factor = 1 if losses == 0 else gains/losses
             loss_avg_secs = my_utils.average_timedelta(loss_duration)
             loss_max_secs = my_utils.max_timedelta(loss_duration)
             win_avg_secs = my_utils.average_timedelta(win_duration)
@@ -226,13 +233,12 @@ def compute_trade_stats(fill_data, es_contract_value):
 
             profitfactor_conditions = [
                 {"expr": lambda x: x < 0.5, "color": Color.CRITICAL, "msg": "Stop. Profit Factor is very low."},
-                {"expr": lambda x: x < 1.2, "color": Color.WARNING, "msg": ""},
                 {"expr": lambda x: x > 1.5, "color": Color.OK, "msg": ""},
             ]
 
             losingstreak_conditions = [
                 {"expr": lambda x: x <= -4, "color": Color.CRITICAL, "msg": f"Stop. Extended losing streak. {streak_tracker.get_loss_mix()}"},
-                {"expr": lambda x: x <= -2, "color": Color.WARNING, "msg": "Slow down. Consecutive losses."},
+                {"expr": lambda x: x <= -2, "color": Color.WARNING, "msg": f"Slow down. Consecutive losses.. {streak_tracker.get_loss_mix()}"},
             ]
 
             loss_max_size_conditions = [
@@ -254,38 +260,42 @@ def compute_trade_stats(fill_data, es_contract_value):
             loss_scaled_count_color, loss_scaled_count_msg, loss_scaled_count_critical = evaluate_conditions(loss_scaled_count, loss_scaled_count_conditions)
             
             # color change only (can be converted to above approach too with resulting empty msg but only if there's benefit)  
-            streak_interval_color = Color.CRITICAL if streak_tracker.loss_trade_interval() < 2 else Color.WARNING if streak_tracker.loss_trade_interval() < 4 else Color.DEFAULT
+            streak_interval_color = Color.DEFAULT if streak_tracker.streak > -2 else Color.CRITICAL if streak_tracker.loss_trade_interval() < 2 else Color.WARNING if streak_tracker.loss_trade_interval() < 4 else Color.DEFAULT
             max_drawdown_color = Color.WARNING if max_realized_drawdown < -1000 else Color.DEFAULT
             max_loss_color = Color.WARNING if loss_max_value <= -900 else Color.DEFAULT
             open_size_color = Color.CAUTION if abs(position_size) > 3 else Color.DEFAULT
             avg_duration_color = Color.WARNING if win_avg_secs < loss_avg_secs else Color.DEFAULT
             max_duration_color = Color.WARNING if win_max_secs < loss_max_secs else Color.DEFAULT
             intertrade_time_avg_color = Color.WARNING if time_between_trades_avg_secs < timedelta(seconds=60) else Color.DEFAULT
+            win_scaled_count_color = Color.OK if win_scaled_count >= 2 else Color.DEFAULT
 
             open_entry_time = entry_time.strftime("%m-%d %H:%M") if position_size > 0 else ''
-
+            
             trading_stats = [
                 {"Trades": [f'{completed_trades}', f'{overtrade_color}']},
                 {"Win Rate": [f'{win_rate:.0f}%', f'{winrate_color}']},
                 {"Profit Factor": [f'{profit_factor:.01f}', f'{profitfactor_color}']},
                 {"Trades L/S": [f'{total_long_trades} / {total_short_trades}']},
                 {"Scaled Losses": [f'{int(loss_scaled_count):,}', f'{loss_scaled_count_color}']},
+                {"Max Loss Size": [f'{int(loss_max_size)}', f'{loss_max_size_color}']},
                 {"": [f'']},
                 {"Streak": [f'{streak_tracker.streak:+}', f'{losing_streak_color}']},
                 {"Mix": [f'{streak_tracker.get_loss_mix()}', f'{losing_streak_color}']},
-                {"Interval": [f'{streak_tracker.loss_trade_interval()} min/trade', f'{streak_interval_color}']},
-                {"Avg Size": [f'{streak_tracker.get_avg_size_of_current_streak():.01f}']},
-                {"Max Size": [f'{streak_tracker.get_max_size_of_current_streak()}']},
+                {"Interval": [f'{streak_tracker.loss_trade_interval_str()}', f'{streak_interval_color}']},
+                {"Avg Size": [f'{streak_tracker.get_avg_size_of_current_streak_str()}']},
+                # {"Max Size": [f'{streak_tracker.get_max_size_of_current_streak_str()}']},
                 {"Best/Worst": [f'{streak_tracker.best_streak:+} / {streak_tracker.worst_streak:+}']},
                 {"": [f'']},
-                {"Profit/Loss": [f'{int(total_profit_or_loss):,}', f'{pnl_color}']},
-                {"Max Drawdown": [f'{int(max_realized_drawdown):,}', f'{max_drawdown_color}']},
-                {"Max Loss": [f'{int(loss_max_value):,}', f'{max_loss_color}']},
+                {"Profit/Loss": [f'{int(total_profit_or_loss):+,}', f'{pnl_color}']},
+                {"Peak Loss": [f'{int(max_realized_drawdown):+,}', f'{max_drawdown_color}']},
+                {"Max Trade Loss": [f'{int(loss_max_value):+,}', f'{max_loss_color}']},
+                {"Peak Profit": [f'{int(max_realized_profit):+,}']},
+                {"Max Trade Gain": [f'{int(win_max_value):+,}']},
                 {"": [f'']},
                 {"Open Size": [f'{int(position_size)}', f'{open_size_color}']},
-                {"Open Trade Entry": [f'{open_entry_time}']},
-                {"Max Loss Size": [f'{int(loss_max_size)}', f'{loss_max_size_color}']},
-                {"Last Trade Exit": [f'{last_exit_time.strftime("%m/%d %H:%M")}']},
+                {"Open Entry": [f'{open_entry_time}']},
+                {"First Entry": [f'{first_entry_time.strftime("%m/%d %H:%M")}']},
+                {"Last Exit": [f'{last_exit_time.strftime("%m/%d %H:%M")}']},
                 {"": [f'']},
                 {"InterTrade Avg": [f'{my_utils.format_timedelta(time_between_trades_avg_secs)}', f'{intertrade_time_avg_color}']},
                 {"InterTrade Max": [f'{my_utils.format_timedelta(time_between_trades_max_secs)}']},
@@ -294,6 +304,8 @@ def compute_trade_stats(fill_data, es_contract_value):
                 {"": [f'']},
                 {"Orders L/S": [f'{total_buys} / {total_sells}']},
                 {"Contracts L/S": [f'{total_buy_contracts} / {total_sell_contracts}']},
+                {"Scaled Wins": [f'{int(win_scaled_count):,}', f'{win_scaled_count_color}']},
+                {"Max Win Size": [f'{int(win_max_size)}']},
                 {"": [f'']},
                 {"Last Updated": [f'{datetime.now().strftime("%m/%d %H:%M")}']},
                 # {"Account": f'{account_name}'}
@@ -510,7 +522,7 @@ contract_value = 50
 directory_path = "/Users/ryangaraygay/Library/MotiveWave/output/"  # Replace with your directory path
 auto_refresh_ms = 30000 #60000
 opacity = 1
-button_row_index_start = 33 # fixed so we don't have to window adjust when refreshing and some accounts have no fills (and therefore no stats)
+button_row_index_start = 38 # fixed so we don't have to window adjust when refreshing and some accounts have no fills (and therefore no stats)
 
 if __name__ == "__main__":
     filepath = get_latest_output_file(directory_path)
@@ -527,8 +539,6 @@ if __name__ == "__main__":
 
 # TODO
 ## metrics
-#   Max Win
-#   First Trade Entry
 #   Open Duration
 ## more features
 #   handle the ALL stats case (multi-account view)
