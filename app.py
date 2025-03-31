@@ -16,7 +16,7 @@ from pynput.keyboard import Key, Controller
 from datetime import timedelta
 
 Trade = namedtuple("Trade", ["account_name", "order_id", "order_type", "quantity", "fill_price", "fill_time"])
-AlertMessage = namedtuple("AlertMessage", ["message", "account", "duration_secs", "display_once", "min_interval_secs"])
+AlertMessage = namedtuple("AlertMessage", ["message", "account", "duration_secs", "display_once", "min_interval_secs", "critical"])
 StatValue = namedtuple("Key", "Value")
 class Color:
     CAUTION = "yellow"
@@ -220,7 +220,7 @@ def compute_trade_stats(fill_data, es_contract_value):
             ]
 
             winrate_conditions = [
-                {"expr": lambda x: x < 20, "color": Color.CRITICAL, "msg": "Stop. Win Rate is too low."},
+                {"expr": lambda x: x < 20, "color": Color.CRITICAL, "msg": "Stop. Win Rate is very low."},
                 {"expr": lambda x: x < 40, "color": Color.WARNING, "msg": "Slow down. Win Rate is low."},
             ]
 
@@ -231,18 +231,18 @@ def compute_trade_stats(fill_data, es_contract_value):
             ]
 
             losingstreak_conditions = [
-                {"expr": lambda x: x <= -4, "color": Color.CRITICAL, "msg": "Stop. Extended losing streak."},
+                {"expr": lambda x: x <= -4, "color": Color.CRITICAL, "msg": f"Stop. Extended losing streak. {streak_tracker.get_loss_mix()}"},
                 {"expr": lambda x: x <= -2, "color": Color.WARNING, "msg": "Slow down. Consecutive losses."},
             ]
 
             loss_max_size_conditions = [
                 {"expr": lambda x: x >= 10, "color": Color.CRITICAL, "msg": "Stop. Take a break then size down."},
-                {"expr": lambda x: x >= 6, "color": Color.WARNING, "msg": "Slow down. Size down."},
+                {"expr": lambda x: x >= 6, "color": Color.WARNING, "msg": "Size down."},
             ]
             
             loss_scaled_count_conditions = [
                 {"expr": lambda x: x >= 5, "color": Color.CRITICAL, "msg": "Stop. Take a break then scale up winners only."},
-                {"expr": lambda x: x >= 3, "color": Color.WARNING, "msg": "Slow down. Scale up winners only."},
+                {"expr": lambda x: x >= 3, "color": Color.WARNING, "msg": "Scale up winners only."},
             ]
 
             winrate_color, winrate_msg, winrate_critical = evaluate_conditions(win_rate, winrate_conditions)
@@ -317,9 +317,10 @@ def compute_trade_stats(fill_data, es_contract_value):
             critical_alerts = []
             non_critical_alerts = []
 
+            # TODO lambda sort based on critical when adding trading_alerts to simplify
             for msg, show_once, critical in alerts_data:
                 if msg:
-                    alert = AlertMessage(msg, account_name, alert_duration_default, show_once, alert_min_interval_secs_default)
+                    alert = AlertMessage(msg, account_name, alert_duration_default, show_once, alert_min_interval_secs_default, critical)
                     if critical:
                         critical_alerts.append(alert)
                     else:
@@ -451,7 +452,7 @@ def create_stats_window_pyqt6(account_trading_stats):
         if selected_key in account_trading_alerts:
             selected_alerts = account_trading_alerts[selected_key]
             for alert in selected_alerts:
-                alert_manager.display_alert(alert.message, alert.account, alert.duration_secs, alert.display_once, alert.min_interval_secs)
+                alert_manager.display_alert(alert.message, alert.account, alert.duration_secs, alert.display_once, alert.min_interval_secs, alert.critical)
                 # print(alert)
         
     dropdown.currentTextChanged.connect(dropdown_changed)
@@ -526,7 +527,6 @@ if __name__ == "__main__":
 
 # TODO
 ## metrics
-#   Add message based on streak mix
 #   Max Win
 #   First Trade Entry
 #   Open Duration
