@@ -39,8 +39,10 @@ def get_account_names(file_path):
             if match:
                 account_name = match.group(1)
                 account_names.add(account_name)
+    account_names.add("simulated")
     global account_names_loaded
     account_names_loaded = sorted(list(account_names))
+    # print(f'account_names_loaded {account_names_loaded}')
 
 def get_fills(file_path, contract_symbol):
     fill_data = []
@@ -76,20 +78,12 @@ def get_fills(file_path, contract_symbol):
     return fill_data
 
 def compute_trade_stats(fill_data, es_contract_value):
+    account_names_with_fills = set()
     if fill_data:
         # get list of AccountNames in fill
-        account_names_with_fills = set()
         for item in fill_data:
             account_names_with_fills.add(item.account_name)
         # print(account_names_with_fills)
-
-        account_names_no_fills = [item for item in account_names_loaded if item not in account_names_with_fills]
-        for no_fill_account in account_names_no_fills:
-            trading_stats = [
-                {"Trades": [f'0']},
-                {"Last Updated": [f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}']},
-            ]
-            account_trading_stats[no_fill_account] = trading_stats
 
         # # test specific accounts only
         # account_names_with_fills.clear()
@@ -313,8 +307,8 @@ def compute_trade_stats(fill_data, es_contract_value):
             alerts_data = [
                 (overtrade_msg, False, overtrade_critical),
                 (pnl_msg, False, pnl_critical),
-                (winrate_msg, False, winrate_critical),
-                (profitfactor_msg, False, profitfactor_critical),
+                (winrate_msg if completed_trades > 3 else "", False, winrate_critical),
+                (profitfactor_msg if completed_trades > 3 else "", False, profitfactor_critical),
                 (losing_streak_msg, False, losingstreak_critical),
                 (loss_max_size_msg, False, loss_max_size_critical),
                 (loss_scaled_count_msg, False, loss_scaled_count_critical),
@@ -337,6 +331,15 @@ def compute_trade_stats(fill_data, es_contract_value):
 
             # print(trading_alerts)
             account_trading_alerts[account_name] = trading_alerts
+
+    account_names_no_fills = [item for item in account_names_loaded if item not in account_names_with_fills]
+    for no_fill_account in account_names_no_fills:
+        trading_stats = [
+            {"Trades": [f'0']},
+            {"Last Updated": [f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}']},
+        ]
+        account_trading_stats[no_fill_account] = trading_stats
+    # print(f'account_trading_stats {account_trading_stats}')
 
     return [ account_trading_stats, account_trading_alerts ]
 
@@ -376,7 +379,7 @@ def create_stats_window_pyqt6(account_trading_stats):
     font_name = "Courier New" #Andale Mono, Menlo
 
     dropdown = QComboBox()
-    sorted_keys = sorted(list(account_trading_stats.keys()))
+    sorted_keys = sorted(list(account_names_loaded))
     dropdown.addItems(sorted_keys)
     dropdown_font = QFont(font_name)
     dropdown_font.setPointSize(27)
@@ -444,11 +447,13 @@ def create_stats_window_pyqt6(account_trading_stats):
                     value_label.setFont(font)
                     layout.addWidget(value_label, row_index, 1)
                     row_index += 1
-        selected_alerts = account_trading_alerts[selected_key]
-        for alert in selected_alerts:
-            alert_manager.display_alert(alert.message, alert.account, alert.duration_secs, alert.display_once, alert.min_interval_secs)
-            # print(alert)
-    
+        
+        if selected_key in account_trading_alerts:
+            selected_alerts = account_trading_alerts[selected_key]
+            for alert in selected_alerts:
+                alert_manager.display_alert(alert.message, alert.account, alert.duration_secs, alert.display_once, alert.min_interval_secs)
+                # print(alert)
+        
     dropdown.currentTextChanged.connect(dropdown_changed)
     dropdown_changed(sorted_keys[0])
     
@@ -513,13 +518,18 @@ if __name__ == "__main__":
     # print(filepath)
     get_account_names(filepath)
     fill_data = get_fills(filepath, contract_symbol)
-    ats, ata = compute_trade_stats(fill_data, contract_value)
-    if len(ats) > 0:
-        create_stats_window_pyqt6(ats)
+    account_trading_stats, account_trading_alerts = compute_trade_stats(fill_data, contract_value)
+    if len(account_trading_stats) > 0:
+        create_stats_window_pyqt6(account_trading_stats)
     else:
         print('no fills found')
 
 # TODO
+## metrics
+#   Add message based on streak mix
+#   Max Win
+#   First Trade Entry
+#   Open Duration
 ## more features
 #   handle the ALL stats case (multi-account view)
 #   dropdown selection for which file (or maybe even multi-select)
