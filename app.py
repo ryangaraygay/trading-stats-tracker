@@ -15,6 +15,9 @@ from PyQt6.QtGui import QColor, QPalette, QFont
 from pynput.keyboard import Key, Controller
 from datetime import timedelta
 
+DAY_TIME_FORMAT = "%m-%d %H:%M"
+DATE_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
+
 Trade = namedtuple("Trade", ["account_name", "order_id", "order_type", "quantity", "fill_price", "fill_time"])
 AlertMessage = namedtuple("AlertMessage", ["message", "account", "duration_secs", "display_once", "min_interval_secs", "critical"])
 StatValue = namedtuple("Key", "Value")
@@ -24,6 +27,9 @@ class Color:
     CRITICAL = "red"
     OK = "#90EE90"
     DEFAULT = "white"
+class MetricNames:
+    OPEN_ENTRY = "Open Entry"
+    OPEN_DURATION = "Open Duration"
     
 account_trading_stats = {}
 account_trading_alerts = {}
@@ -42,8 +48,7 @@ def get_account_names(file_path):
     account_names.add("simulated")
     global account_names_loaded
     account_names_loaded = sorted(list(account_names))
-    # print(f'account_names_loaded {account_names_loaded}')
-
+    
 def get_fills(file_path, contract_symbol):
     fill_data = []
     pattern = rf'OrderDirectory::orderFilled\(\) order: ID: (\S+) (\S+) {contract_symbol}\.CME.*(Filled BUY|Filled SELL).*Qty:(\d+\.\d+).*Last Fill Time:\s*(\d{{2}}/\d{{2}}/\d{{4}} \d{{1,2}}:\d{{2}} [AP]M).*fill price: (\d+\.\d+)'
@@ -67,13 +72,6 @@ def get_fills(file_path, contract_symbol):
                     print(f"Error parsing datetime: {fill_time_str}")
                     return None
 
-                # print(f'Order ID: {order_id}')
-                # print(f'Order Type: {order_type}')
-                # print(f'Quantity: {quantity if "BUY" in order_type else -quantity}')
-                # print(f'Fill Time: {fill_time}')
-                # print(f'Fill Price: {fill_price}')
-                # print('-' * 40)
-
                 fill_data.append(Trade(account_name, order_id, order_type, quantity, fill_price, fill_time))
     return fill_data
 
@@ -83,11 +81,10 @@ def compute_trade_stats(fill_data, es_contract_value):
         # get list of AccountNames in fill
         for item in fill_data:
             account_names_with_fills.add(item.account_name)
-        # print(account_names_with_fills)
 
-        # # test specific accounts only
+        # test specific accounts only
         # account_names_with_fills.clear()
-        # account_names_with_fills.add("account-name-here")
+        # account_names_with_fills.add("simulated")
 
         for account_name in account_names_with_fills:
             grouped_trades = defaultdict(list)
@@ -114,9 +111,7 @@ def compute_trade_stats(fill_data, es_contract_value):
             streak_tracker = Streak()
 
             filtered_list = my_utils.filter_namedtuples(fill_data, "account_name", account_name)
-
             sorted_fill = sorted(filtered_list, key=lambda record: record.order_id, reverse=False) # keeping only digits for SIM-ID orders
-            # print(sorted_fill)
 
             min_time = datetime.max
             max_time = datetime.min
@@ -138,8 +133,7 @@ def compute_trade_stats(fill_data, es_contract_value):
                         time_between_trades.append(duration_since_last_trade)
 
                 grouped_trades[fill.order_type].append(fill)
-                # print(grouped_trades)
-
+                
                 if "BUY" in fill.order_type:
                     total_buys += 1
                     total_buy_contracts += int(fill.quantity)
@@ -199,7 +193,6 @@ def compute_trade_stats(fill_data, es_contract_value):
 
                     streak_tracker.process(is_win, entry_is_long, last_exit_time, trade_size)
 
-                    # print('trade complete')
                     grouped_trades.clear()
                     min_time = datetime.max
                     max_time = datetime.min
@@ -238,7 +231,7 @@ def compute_trade_stats(fill_data, es_contract_value):
 
             losingstreak_conditions = [
                 {"expr": lambda x: x <= -4, "color": Color.CRITICAL, "msg": f"Stop. Extended losing streak. {streak_tracker.get_loss_mix()}"},
-                {"expr": lambda x: x <= -2, "color": Color.WARNING, "msg": f"Slow down. Consecutive losses.. {streak_tracker.get_loss_mix()}"},
+                {"expr": lambda x: x <= -2, "color": Color.WARNING, "msg": f"Slow down. Consecutive losses. {streak_tracker.get_loss_mix()}"},
             ]
 
             loss_max_size_conditions = [
@@ -269,7 +262,8 @@ def compute_trade_stats(fill_data, es_contract_value):
             intertrade_time_avg_color = Color.WARNING if time_between_trades_avg_secs < timedelta(seconds=60) else Color.DEFAULT
             win_scaled_count_color = Color.OK if win_scaled_count >= 2 else Color.DEFAULT
 
-            open_entry_time = entry_time.strftime("%m-%d %H:%M") if position_size > 0 else ''
+            open_entry_time_i = entry_time.strftime(DAY_TIME_FORMAT) if position_size != 0 else ''
+            open_entry_duration = calculate_mins(open_entry_time_i, datetime.now())
             
             trading_stats = [
                 {"Trades": [f'{completed_trades}', f'{overtrade_color}']},
@@ -293,7 +287,8 @@ def compute_trade_stats(fill_data, es_contract_value):
                 {"Max Trade Gain": [f'{int(win_max_value):+,}']},
                 {"": [f'']},
                 {"Open Size": [f'{int(position_size)}', f'{open_size_color}']},
-                {"Open Entry": [f'{open_entry_time}']},
+                {MetricNames.OPEN_ENTRY: [f'{open_entry_time_i}']},
+                {MetricNames.OPEN_DURATION: [f'{open_entry_duration}']},
                 {"First Entry": [f'{first_entry_time.strftime("%m/%d %H:%M")}']},
                 {"Last Exit": [f'{last_exit_time.strftime("%m/%d %H:%M")}']},
                 {"": [f'']},
@@ -311,7 +306,6 @@ def compute_trade_stats(fill_data, es_contract_value):
                 # {"Account": f'{account_name}'}
             ]
 
-            # print(trading_stats)
             account_trading_stats[account_name] = trading_stats
 
             alert_duration_default = 20
@@ -343,17 +337,15 @@ def compute_trade_stats(fill_data, es_contract_value):
             trading_alerts.extend(critical_alerts)
             trading_alerts.extend(non_critical_alerts)
 
-            # print(trading_alerts)
             account_trading_alerts[account_name] = trading_alerts
 
     account_names_no_fills = [item for item in account_names_loaded if item not in account_names_with_fills]
     for no_fill_account in account_names_no_fills:
         trading_stats = [
             {"Trades": [f'0']},
-            {"Last Updated": [f'{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}']},
+            {"Last Updated": [f'{datetime.now().strftime(DATE_TIME_FORMAT)}']},
         ]
         account_trading_stats[no_fill_account] = trading_stats
-    # print(f'account_trading_stats {account_trading_stats}')
 
     return [ account_trading_stats, account_trading_alerts ]
 
@@ -366,9 +358,15 @@ def evaluate_conditions(value, conditions):
             if cond[0](value):
                 return cond[1], cond[2], cond[1] == Color.CRITICAL
     return Color.DEFAULT, "", False
-    
+
+open_entry_time_str = ""  # Global variable to store the Open Entry time string
+open_duration_label = None
+
+alert_manager = HammerspoonAlertManager()
+app = QApplication(sys.argv)
+dropdown = QComboBox()
+
 def create_stats_window_pyqt6(account_trading_stats):
-    app = QApplication(sys.argv)
     window = QWidget()
     window.setWindowTitle("Trading Statistics")
     window.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
@@ -380,7 +378,6 @@ def create_stats_window_pyqt6(account_trading_stats):
 
     font_name = "Courier New" #Andale Mono, Menlo
 
-    dropdown = QComboBox()
     sorted_keys = sorted(list(account_names_loaded))
     dropdown.addItems(sorted_keys)
     dropdown_font = QFont(font_name)
@@ -399,7 +396,7 @@ def create_stats_window_pyqt6(account_trading_stats):
     close_button = QPushButton("Close")
 
     def refresh_data():
-        refresh_button.setText(f'Refresh [{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}]')
+        refresh_button.setText(f'Refresh [{datetime.now().strftime(DATE_TIME_FORMAT)}]')
         selected_key = dropdown.currentText()
         fill_data = get_fills(filepath, contract_symbol)
         current_fill_count = len(fill_data)
@@ -414,8 +411,6 @@ def create_stats_window_pyqt6(account_trading_stats):
 
     refresh_button.clicked.connect(refresh_data)
     close_button.clicked.connect(close_app)
-
-    alert_manager = HammerspoonAlertManager()
 
     def dropdown_changed(selected_key):
         for i in reversed(range(layout.count())):
@@ -432,6 +427,10 @@ def create_stats_window_pyqt6(account_trading_stats):
                     layout.setRowMinimumHeight(row_index, 20)
                     row_index += 1
                 else:
+                    if key == MetricNames.OPEN_ENTRY:
+                        global open_entry_time_str
+                        open_entry_time_str = str(value_color[0])
+                        
                     key_label = QLabel(key)
                     key_label.setStyleSheet("border: 1px solid black; color: white;")
                     key_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
@@ -447,13 +446,19 @@ def create_stats_window_pyqt6(account_trading_stats):
                     font.setPointSize(27)
                     value_label.setFont(font)
                     layout.addWidget(value_label, row_index, 1)
+
+                    if key == MetricNames.OPEN_DURATION:
+                        global open_duration_label
+                        open_duration_label = value_label
+
                     row_index += 1
+
+        update_minutes()
         
         if selected_key in account_trading_alerts:
             selected_alerts = account_trading_alerts[selected_key]
             for alert in selected_alerts:
                 alert_manager.display_alert(alert.message, alert.account, alert.duration_secs, alert.display_once, alert.min_interval_secs, alert.critical)
-                # print(alert)
         
     dropdown.currentTextChanged.connect(dropdown_changed)
     dropdown_changed(sorted_keys[0])
@@ -468,7 +473,36 @@ def create_stats_window_pyqt6(account_trading_stats):
     timer.timeout.connect(refresh_data)
     timer.start(auto_refresh_ms) #use variable.
 
+    duration_timer = QTimer()
+    duration_timer.timeout.connect(update_minutes)
+    duration_timer.start(60000)  # 60000 milliseconds = 1 minute
     sys.exit(app.exec())
+
+def calculate_mins(open_entry_time_str, reference_time):
+    if not open_entry_time_str:
+        return None
+    try:
+        open_entry_time = datetime.strptime(open_entry_time_str, DAY_TIME_FORMAT)
+        current_year = reference_time.year
+        open_entry_time = open_entry_time.replace(year=current_year)
+        time_difference = reference_time - open_entry_time
+        minutes = int(time_difference.total_seconds() / 60)
+        return minutes
+    except ValueError as e:
+        print(e)
+        return None
+
+def update_minutes():
+    minutes = calculate_mins(open_entry_time_str, datetime.now())
+    if minutes is not None:
+        global open_duration_label
+        open_duration_label.setText(f'{minutes}')
+
+        caution_minutes = 10 # TODO set to correct threshold = 10
+        if minutes >= caution_minutes: 
+            open_duration_label.setStyleSheet(f"border: 1px solid black; color: yellow;")
+            print(dropdown.currentText())
+            alert_manager.display_alert(f"Trade open for > 10 mins", dropdown.currentText(), 5, False, 600, False)
 
 def get_latest_output_file(directory):
     """
@@ -515,7 +549,6 @@ if __name__ == "__main__":
     filepath = get_latest_output_file(directory_path)
     # filepath = "/Users/ryangaraygay/Library/MotiveWave/output/output (Mar-27 203706).txt" # some accounts with no fills
     # filepath = "/Users/ryangaraygay/Library/MotiveWave/output/output (Mar-27 062404).txt"
-    # print(filepath)
     get_account_names(filepath)
     fill_data = get_fills(filepath, contract_symbol)
     account_trading_stats, account_trading_alerts = compute_trade_stats(fill_data, contract_value)
@@ -525,8 +558,6 @@ if __name__ == "__main__":
         print('no fills found')
 
 # TODO
-## metrics
-#   Open Duration
 ## more features
 #   handle the ALL stats case (multi-account view)
 #   dropdown selection for which file (or maybe even multi-select)
