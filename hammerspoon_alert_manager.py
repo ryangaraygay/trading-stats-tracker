@@ -60,7 +60,8 @@ class HammerspoonAlertManager:
             # Display the alert via hammerspoon_bridge
             # alert_customization = "{ }"
             fill_color = "{ red = 255, green = 0, blue = 0, alpha = 0.7 }" if is_critical else "{ red = 0, green = 255, blue = 255, alpha = 0.7 }"
-            alert_customization = "{ fillColor = " + fill_color + ", textColor = { white=0.1, alpha=1 }, radius = 20}"
+
+            alert_customization = "{ fillColor = " + fill_color + ", textColor = { white=0.1, alpha=1 }, radius = 20, textSize = 40, padding = 30}"
             lua_code = f'hs.alert.show("{message}", {alert_customization}, hs.screen.primaryScreen(), {duration_secs})'
             self._execute_hammerspoon_lua(lua_code)
 
