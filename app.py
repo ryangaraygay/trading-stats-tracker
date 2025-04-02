@@ -72,8 +72,18 @@ def get_fills(file_path, contract_symbol):
                     print(f"Error parsing datetime: {fill_time_str}")
                     return None
 
-                fill_data.append(Trade(account_name, order_id, order_type, quantity, fill_price, fill_time))
+                add_unique_namedtuple(fill_data, Trade(account_name, order_id, order_type, quantity, fill_price, fill_time))
     return fill_data
+
+def add_unique_namedtuple(data_list, new_namedtuple):
+    existing_combinations = set((t.account_name, t.order_id) for t in data_list)
+    new_combination = (new_namedtuple.account_name, new_namedtuple.order_id)
+
+    if new_combination not in existing_combinations:
+        data_list.append(new_namedtuple)
+        return True
+    else:
+        return False
 
 def compute_trade_stats(fill_data, es_contract_value):
     account_names_with_fills = set()
@@ -235,12 +245,12 @@ def compute_trade_stats(fill_data, es_contract_value):
             ]
 
             loss_max_size_conditions = [
-                {"expr": lambda x: x >= 10, "color": Color.CRITICAL, "msg": "Stop. Take a break then size down."},
+                {"expr": lambda x: x >= 10, "color": Color.CRITICAL, "msg": "Stop. Size down."},
                 {"expr": lambda x: x >= 6, "color": Color.WARNING, "msg": "Size down."},
             ]
             
             loss_scaled_count_conditions = [
-                {"expr": lambda x: x >= 5, "color": Color.CRITICAL, "msg": "Stop. Take a break then scale up winners only."},
+                {"expr": lambda x: x >= 5, "color": Color.CRITICAL, "msg": "Stop. Scale up winners only."},
                 {"expr": lambda x: x >= 3, "color": Color.WARNING, "msg": "Scale up winners only."},
             ]
 
@@ -269,11 +279,10 @@ def compute_trade_stats(fill_data, es_contract_value):
                 {"Trades": [f'{completed_trades}', f'{overtrade_color}']},
                 {"Win Rate": [f'{win_rate:.0f}%', f'{winrate_color}']},
                 {"Profit Factor": [f'{profit_factor:.01f}', f'{profitfactor_color}']},
-                {"Trades L/S": [f'{total_long_trades} / {total_short_trades}']},
                 {"Scaled Losses": [f'{int(loss_scaled_count):,}', f'{loss_scaled_count_color}']},
                 {"Max Loss Size": [f'{int(loss_max_size)}', f'{loss_max_size_color}']},
                 {"": [f'']},
-                {"Streak": [f'{streak_tracker.streak:+}', f'{losing_streak_color}']},
+                {"Consecutive W/L": [f'{streak_tracker.streak:+}', f'{losing_streak_color}']},
                 {"Mix": [f'{streak_tracker.get_loss_mix()}', f'{losing_streak_color}']},
                 {"Interval": [f'{streak_tracker.loss_trade_interval_str()}', f'{streak_interval_color}']},
                 {"Avg Size": [f'{streak_tracker.get_avg_size_of_current_streak_str()}']},
@@ -287,8 +296,8 @@ def compute_trade_stats(fill_data, es_contract_value):
                 {"Max Trade Gain": [f'{int(win_max_value):+,}']},
                 {"": [f'']},
                 {"Open Size": [f'{int(position_size)}', f'{open_size_color}']},
-                {MetricNames.OPEN_ENTRY: [f'{open_entry_time_i}']},
                 {MetricNames.OPEN_DURATION: [f'{open_entry_duration}']},
+                {MetricNames.OPEN_ENTRY: [f'{open_entry_time_i}']},
                 {"First Entry": [f'{first_entry_time.strftime("%m/%d %H:%M")}']},
                 {"Last Exit": [f'{last_exit_time.strftime("%m/%d %H:%M")}']},
                 {"": [f'']},
@@ -297,6 +306,7 @@ def compute_trade_stats(fill_data, es_contract_value):
                 {"Duration Avg W/L": [f'{my_utils.format_timedelta(win_avg_secs)} / {my_utils.format_timedelta(loss_avg_secs)}', f'{avg_duration_color}']},
                 {"Duration Max W/L": [f'{my_utils.format_timedelta(win_max_secs)} / {my_utils.format_timedelta(loss_max_secs)}', f'{max_duration_color}']},
                 {"": [f'']},
+                {"Trades L/S": [f'{total_long_trades} / {total_short_trades}']},
                 {"Orders L/S": [f'{total_buys} / {total_sells}']},
                 {"Contracts L/S": [f'{total_buy_contracts} / {total_sell_contracts}']},
                 {"Scaled Wins": [f'{int(win_scaled_count):,}', f'{win_scaled_count_color}']},
