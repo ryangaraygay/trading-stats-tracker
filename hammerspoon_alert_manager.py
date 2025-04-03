@@ -20,7 +20,7 @@ class HammerspoonAlertManager:
         except subprocess.CalledProcessError as e:
             print(f"Error executing Hammerspoon Lua: {e}")
 
-    def display_alert(self, message: str, account: str, duration_secs: float = 2.0, display_once: bool = False, min_interval_secs: int = 0, is_critical: bool = False):
+    def display_alert(self, message: str, account: str, duration_secs: float = 2.0, display_once: bool = False, min_interval_secs: int = 0, is_critical: bool = False, extra_msg: str = ""):
         """
         Displays a Hammerspoon alert with account-specific display limits.
 
@@ -31,9 +31,9 @@ class HammerspoonAlertManager:
             display_once: If True, the message will only be displayed once per account.
             min_interval_secs: Minimum interval in seconds between displaying the same message per account.
         """
-        threading.Thread(target=self._display_alert_thread, args=(message, account, duration_secs, display_once, min_interval_secs, is_critical)).start()
+        threading.Thread(target=self._display_alert_thread, args=(message, account, duration_secs, display_once, min_interval_secs, is_critical, extra_msg)).start()
 
-    def _display_alert_thread(self, message: str, account: str, duration_secs: float, display_once: bool, min_interval_secs: int, is_critical: bool):
+    def _display_alert_thread(self, message: str, account: str, duration_secs: float, display_once: bool, min_interval_secs: int, is_critical: bool, extra_msg: str):
         with self._lock:
             now = datetime.datetime.now()
 
@@ -60,9 +60,9 @@ class HammerspoonAlertManager:
             # Display the alert via hammerspoon_bridge
             # alert_customization = "{ }"
             fill_color = "{ red = 255, green = 0, blue = 0, alpha = 0.7 }" if is_critical else "{ red = 0, green = 255, blue = 255, alpha = 0.7 }"
-
             alert_customization = "{ fillColor = " + fill_color + ", textColor = { white=0.1, alpha=1 }, radius = 20, textSize = 40, padding = 30}"
-            lua_code = f'hs.alert.show("{message}", {alert_customization}, hs.screen.primaryScreen(), {duration_secs})'
+
+            lua_code = f'hs.alert.show("{message} {extra_msg}", {alert_customization}, hs.screen.primaryScreen(), {duration_secs})'
             self._execute_hammerspoon_lua(lua_code)
 
             # Update message data

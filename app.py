@@ -9,7 +9,7 @@ from hammerspoon_alert_manager import HammerspoonAlertManager
 
 from collections import defaultdict, namedtuple
 from datetime import datetime
-from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QGridLayout, QPushButton, QComboBox
+from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QGridLayout, QPushButton, QComboBox, QCheckBox
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QColor, QPalette, QFont
 from pynput.keyboard import Key, Controller
@@ -19,7 +19,7 @@ DAY_TIME_FORMAT = "%m-%d %H:%M"
 DATE_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 Trade = namedtuple("Trade", ["account_name", "order_id", "order_type", "quantity", "fill_price", "fill_time"])
-AlertMessage = namedtuple("AlertMessage", ["message", "account", "duration_secs", "display_once", "min_interval_secs", "critical"])
+AlertMessage = namedtuple("AlertMessage", ["message", "account", "duration_secs", "display_once", "min_interval_secs", "critical", "extra_msg"])
 StatValue = namedtuple("Key", "Value")
 class Color:
     CAUTION = "yellow"
@@ -30,6 +30,34 @@ class Color:
 class MetricNames:
     OPEN_ENTRY = "Open Entry"
     OPEN_DURATION = "Open Duration"
+    AVG_SIZE = "Avg Size"
+    FIRST_ENTRY = "First Entry"
+    LAST_EXIT = "Last Exit"
+    INTERTRADE_AVG = "InterTrade Avg"
+    INTERTRADE_MAX = "InterTrade Max"
+    DURATION_AVG = "Duration Avg W/L"
+    DURATION_MAX = "Duration Max W/L"
+    AVG_ORDERS_PER_TRADE = "Avg Order per Trade"
+    ORDERS_LONG_SHORT = "Orders L/S"
+    CONTRACTS_LONG_SHORT = "Contracts L/S"
+    SCALED_WINS = "Scaled Wins"
+    MAX_WIN_SZE = "Max Win Size"
+    LAST_UPDATED = "Last Updated"
+
+keys_to_exclude = [
+    MetricNames.AVG_SIZE,
+    MetricNames.OPEN_ENTRY,
+    MetricNames.FIRST_ENTRY,
+    MetricNames.LAST_EXIT,
+    MetricNames.INTERTRADE_AVG,
+    MetricNames.INTERTRADE_MAX,
+    MetricNames.AVG_ORDERS_PER_TRADE,
+    MetricNames.ORDERS_LONG_SHORT,
+    MetricNames.CONTRACTS_LONG_SHORT,
+    MetricNames.SCALED_WINS,
+    MetricNames.MAX_WIN_SZE,
+    MetricNames.LAST_UPDATED,
+] # Define keys to exclude if extra metrics is unchecked.
     
 account_trading_stats = {}
 account_trading_alerts = {}
@@ -123,7 +151,6 @@ def compute_trade_stats(fill_data, es_contract_value):
             filtered_list = my_utils.filter_namedtuples(fill_data, "account_name", account_name)
             sorted_fill = sorted(filtered_list, key=lambda record: record.order_id, reverse=False) # keeping only digits for SIM-ID orders
 
-            min_time = datetime.max
             max_time = datetime.min
             last_exit_time = datetime.max
             loss_duration = list()
@@ -159,13 +186,11 @@ def compute_trade_stats(fill_data, es_contract_value):
                 for trade in grouped_trades["Filled BUY"]:
                     buy_qty += trade.quantity
                     buy_total_value += trade.quantity * trade.fill_price
-                    min_time = min(min_time, trade.fill_time)
                     max_time = max(max_time, trade.fill_time)
 
                 for trade in grouped_trades["Filled SELL"]:
                     sell_qty += trade.quantity
                     sell_total_value += trade.quantity * trade.fill_price
-                    min_time = min(min_time, trade.fill_time)
                     max_time = max(max_time, trade.fill_time)
 
                 position_size = buy_qty - sell_qty
@@ -181,8 +206,8 @@ def compute_trade_stats(fill_data, es_contract_value):
 
                     max_realized_drawdown = min(total_profit_or_loss, max_realized_drawdown)
                     max_realized_profit = max(total_profit_or_loss, max_realized_profit)
-                    duration = max_time - min_time
                     last_exit_time = max_time
+                    duration = last_exit_time - entry_time
 
                     trade_size = int(buy_qty) # can be sell_qty since completed trades have equal sell and buy qty
                     entries_in_trade_count = len(grouped_trades["Filled BUY" if entry_is_long else "Filled SELL"])
@@ -201,10 +226,9 @@ def compute_trade_stats(fill_data, es_contract_value):
                     total_long_trades += 1 if entry_is_long else 0
                     total_short_trades += 1 if not entry_is_long else 0
 
-                    streak_tracker.process(is_win, entry_is_long, last_exit_time, trade_size)
+                    streak_tracker.process(is_win, entry_is_long, entry_time, last_exit_time, trade_size)
 
                     grouped_trades.clear()
-                    min_time = datetime.max
                     max_time = datetime.min
                     entry_time = datetime.max
 
@@ -217,31 +241,45 @@ def compute_trade_stats(fill_data, es_contract_value):
             time_between_trades_avg_secs = my_utils.average_timedelta(time_between_trades)
             time_between_trades_max_secs = my_utils.max_timedelta(time_between_trades)
 
+            directional_bias = ""
+            long_bias_percentage = (total_long_trades / completed_trades) * 100
+            short_bias_percentage = (total_short_trades / completed_trades) * 100
+
+            if long_bias_percentage == 100:
+                directional_bias = f"100% long"
+            elif short_bias_percentage == 100:
+                directional_bias = f"100% short"
+            else:
+                if long_bias_percentage > short_bias_percentage:
+                    directional_bias = f"{long_bias_percentage:.0f}% long"
+                else:
+                    directional_bias = f"{short_bias_percentage:.0f}% short"
+
             # alert conditions, color change only if msg is empty
             trade_conditions = [
-                {"expr": lambda x: x > 20, "color": Color.CRITICAL, "msg": "Stop. You are overtrading."},
-                {"expr": lambda x: x > 10, "color": Color.WARNING, "msg": "Slow down. Too many trades."}
+                {"expr": lambda x: x > 20, "color": Color.CRITICAL, "msg": "Stop. Overtrading.", "extra_msg": f"{completed_trades} trades"},
+                {"expr": lambda x: x > 10, "color": Color.WARNING, "msg": "Slow down. Too many trades.", "extra_msg": f"{completed_trades} trades"}
             ]
 
             pnl_conditions = [
-                {"expr": lambda x: x < -2000, "color": Color.CRITICAL, "msg": "Stop. You have lost too much."},
-                {"expr": lambda x: x < -1000, "color": Color.WARNING, "msg": "Slow down. Sizable losses."},
-                {"expr": lambda x: x >= 1000, "color": Color.OK, "msg": "Wind down. Protect your gains."}
+                {"expr": lambda x: x < -2000, "color": Color.CRITICAL, "msg": "Stop. Too much Loss."},
+                {"expr": lambda x: x < -1000, "color": Color.WARNING, "msg": "Slow down. Losing."},
+                {"expr": lambda x: x >= 1000, "color": Color.OK, "msg": "Wind down. Protect gains."}
             ]
 
             winrate_conditions = [
-                {"expr": lambda x: x < 20, "color": Color.CRITICAL, "msg": "Stop. Win Rate is very low."},
-                {"expr": lambda x: x < 40, "color": Color.WARNING, "msg": "Slow down. Win Rate is low."},
+                {"expr": lambda x: x < 20, "color": Color.CRITICAL, "msg": "Stop. Win Rate very low.", "extra_msg": f"{directional_bias}"},
+                {"expr": lambda x: x < 40, "color": Color.WARNING, "msg": "Slow down. Win Rate low.", "extra_msg": f"{directional_bias}"},
             ]
 
             profitfactor_conditions = [
-                {"expr": lambda x: x < 0.5, "color": Color.CRITICAL, "msg": "Stop. Profit Factor is very low."},
+                {"expr": lambda x: x < 0.5, "color": Color.CRITICAL, "msg": "Stop. Profit Factor very low.", "extra_msg": f"{directional_bias}"},
                 {"expr": lambda x: x > 1.5, "color": Color.OK, "msg": ""},
             ]
 
             losingstreak_conditions = [
-                {"expr": lambda x: x <= -4, "color": Color.CRITICAL, "msg": f"Stop. Extended losing streak. {streak_tracker.get_loss_mix()}"},
-                {"expr": lambda x: x <= -2, "color": Color.WARNING, "msg": f"Slow down. Consecutive losses. {streak_tracker.get_loss_mix()}"},
+                {"expr": lambda x: x <= -5, "color": Color.CRITICAL, "msg": f"Stop. Extended losing streak. {streak_tracker.get_loss_mix()} in {streak_tracker.get_loss_elapsed_time_mins_str()}"},
+                {"expr": lambda x: x <= -2, "color": Color.WARNING, "msg": f"Slow down. Consecutive losses. {streak_tracker.get_loss_mix()} in {streak_tracker.get_loss_elapsed_time_mins_str()}"},
             ]
 
             loss_max_size_conditions = [
@@ -254,18 +292,15 @@ def compute_trade_stats(fill_data, es_contract_value):
                 {"expr": lambda x: x >= 3, "color": Color.WARNING, "msg": "Scale up winners only."},
             ]
 
-            winrate_color, winrate_msg, winrate_critical = evaluate_conditions(win_rate, winrate_conditions)
-            overtrade_color, overtrade_msg, overtrade_critical = evaluate_conditions(completed_trades, trade_conditions)
-            pnl_color, pnl_msg, pnl_critical = evaluate_conditions(total_profit_or_loss, pnl_conditions)
-            profitfactor_color, profitfactor_msg, profitfactor_critical = evaluate_conditions(profit_factor, profitfactor_conditions)
-            losing_streak_color, losing_streak_msg, losingstreak_critical = evaluate_conditions(streak_tracker.streak, losingstreak_conditions)
-            loss_max_size_color, loss_max_size_msg, loss_max_size_critical = evaluate_conditions(loss_max_size, loss_max_size_conditions)
-            loss_scaled_count_color, loss_scaled_count_msg, loss_scaled_count_critical = evaluate_conditions(loss_scaled_count, loss_scaled_count_conditions)
+            winrate_color, winrate_msg, winrate_critical, winrate_extramsg = evaluate_conditions(win_rate, winrate_conditions)
+            overtrade_color, overtrade_msg, overtrade_critical, overtrade_extramsg = evaluate_conditions(completed_trades, trade_conditions)
+            pnl_color, pnl_msg, pnl_critical, extra_msg_placeholder = evaluate_conditions(total_profit_or_loss, pnl_conditions)
+            profitfactor_color, profitfactor_msg, profitfactor_critical, profitfactor_extramsg = evaluate_conditions(profit_factor, profitfactor_conditions)
+            losing_streak_color, losing_streak_msg, losingstreak_critical, extra_msg_placeholder = evaluate_conditions(streak_tracker.streak, losingstreak_conditions)
+            loss_max_size_color, loss_max_size_msg, loss_max_size_critical, loss_max_size_extramsg = evaluate_conditions(loss_max_size, loss_max_size_conditions)
+            loss_scaled_count_color, loss_scaled_count_msg, loss_scaled_count_critical, extra_msg_placeholder = evaluate_conditions(loss_scaled_count, loss_scaled_count_conditions)
             
             # color change only (can be converted to above approach too with resulting empty msg but only if there's benefit)  
-            streak_interval_color = Color.DEFAULT if streak_tracker.streak > -2 else Color.CRITICAL if streak_tracker.loss_trade_interval() < 2 else Color.WARNING if streak_tracker.loss_trade_interval() < 4 else Color.DEFAULT
-            max_drawdown_color = Color.WARNING if max_realized_drawdown < -1000 else Color.DEFAULT
-            max_loss_color = Color.WARNING if loss_max_value <= -900 else Color.DEFAULT
             open_size_color = Color.CAUTION if abs(position_size) > 3 else Color.DEFAULT
             avg_duration_color = Color.WARNING if win_avg_secs < loss_avg_secs else Color.DEFAULT
             max_duration_color = Color.WARNING if win_max_secs < loss_max_secs else Color.DEFAULT
@@ -274,45 +309,48 @@ def compute_trade_stats(fill_data, es_contract_value):
 
             open_entry_time_i = entry_time.strftime(DAY_TIME_FORMAT) if position_size != 0 else ''
             open_entry_duration = calculate_mins(open_entry_time_i, datetime.now())
+            open_entry_duration_str = "" if open_entry_duration == 0 else open_entry_duration
+
+            avg_orders_per_trade = (total_buys + total_sells) / (completed_trades * 2)
             
             trading_stats = [
                 {"Trades": [f'{completed_trades}', f'{overtrade_color}']},
                 {"Win Rate": [f'{win_rate:.0f}%', f'{winrate_color}']},
                 {"Profit Factor": [f'{profit_factor:.01f}', f'{profitfactor_color}']},
+                {"Bias": [f'{directional_bias}']},
                 {"Scaled Losses": [f'{int(loss_scaled_count):,}', f'{loss_scaled_count_color}']},
                 {"Max Loss Size": [f'{int(loss_max_size)}', f'{loss_max_size_color}']},
                 {"": [f'']},
                 {"Consecutive W/L": [f'{streak_tracker.streak:+}', f'{losing_streak_color}']},
-                {"Mix": [f'{streak_tracker.get_loss_mix()}', f'{losing_streak_color}']},
-                {"Interval": [f'{streak_tracker.loss_trade_interval_str()}', f'{streak_interval_color}']},
-                {"Avg Size": [f'{streak_tracker.get_avg_size_of_current_streak_str()}']},
+                {"Mix": [f'{streak_tracker.get_loss_mix()}']},
+                {"Duration": [f'{streak_tracker.get_loss_elapsed_time_mins_str()}']},
+                {MetricNames.AVG_SIZE: [f'{streak_tracker.get_avg_size_of_current_streak_str()}']},
                 # {"Max Size": [f'{streak_tracker.get_max_size_of_current_streak_str()}']},
                 {"Best/Worst": [f'{streak_tracker.best_streak:+} / {streak_tracker.worst_streak:+}']},
                 {"": [f'']},
                 {"Profit/Loss": [f'{int(total_profit_or_loss):+,}', f'{pnl_color}']},
-                {"Peak Loss": [f'{int(max_realized_drawdown):+,}', f'{max_drawdown_color}']},
-                {"Max Trade Loss": [f'{int(loss_max_value):+,}', f'{max_loss_color}']},
-                {"Peak Profit": [f'{int(max_realized_profit):+,}']},
-                {"Max Trade Gain": [f'{int(win_max_value):+,}']},
+                {"Peak P/L": [f'{int(max_realized_profit):+,} / {int(max_realized_drawdown):+,}']},
+                {"Max Trade P/L": [f'{int(win_max_value):+,} / {int(loss_max_value):+,}']},
                 {"": [f'']},
                 {"Open Size": [f'{int(position_size)}', f'{open_size_color}']},
-                {MetricNames.OPEN_DURATION: [f'{open_entry_duration}']},
+                {MetricNames.OPEN_DURATION: [f'{open_entry_duration_str}']},
                 {MetricNames.OPEN_ENTRY: [f'{open_entry_time_i}']},
-                {"First Entry": [f'{first_entry_time.strftime("%m/%d %H:%M")}']},
-                {"Last Exit": [f'{last_exit_time.strftime("%m/%d %H:%M")}']},
+                {MetricNames.FIRST_ENTRY: [f'{first_entry_time.strftime("%m/%d %H:%M")}']},
+                {MetricNames.LAST_EXIT: [f'{last_exit_time.strftime("%m/%d %H:%M")}']},
                 {"": [f'']},
-                {"InterTrade Avg": [f'{my_utils.format_timedelta(time_between_trades_avg_secs)}', f'{intertrade_time_avg_color}']},
-                {"InterTrade Max": [f'{my_utils.format_timedelta(time_between_trades_max_secs)}']},
-                {"Duration Avg W/L": [f'{my_utils.format_timedelta(win_avg_secs)} / {my_utils.format_timedelta(loss_avg_secs)}', f'{avg_duration_color}']},
-                {"Duration Max W/L": [f'{my_utils.format_timedelta(win_max_secs)} / {my_utils.format_timedelta(loss_max_secs)}', f'{max_duration_color}']},
-                {"": [f'']},
-                {"Trades L/S": [f'{total_long_trades} / {total_short_trades}']},
-                {"Orders L/S": [f'{total_buys} / {total_sells}']},
-                {"Contracts L/S": [f'{total_buy_contracts} / {total_sell_contracts}']},
-                {"Scaled Wins": [f'{int(win_scaled_count):,}', f'{win_scaled_count_color}']},
-                {"Max Win Size": [f'{int(win_max_size)}']},
-                {"": [f'']},
-                {"Last Updated": [f'{datetime.now().strftime("%m/%d %H:%M")}']},
+                {MetricNames.INTERTRADE_AVG: [f'{my_utils.format_timedelta(time_between_trades_avg_secs)}', f'{intertrade_time_avg_color}']},
+                {MetricNames.INTERTRADE_MAX: [f'{my_utils.format_timedelta(time_between_trades_max_secs)}']},
+                {MetricNames.DURATION_AVG: [f'{my_utils.format_timedelta(win_avg_secs)} / {my_utils.format_timedelta(loss_avg_secs)}', f'{avg_duration_color}']},
+                {MetricNames.DURATION_MAX: [f'{my_utils.format_timedelta(win_max_secs)} / {my_utils.format_timedelta(loss_max_secs)}', f'{max_duration_color}']},
+                # {"": [f'']},
+                # {"Trades L/S": [f'{total_long_trades} / {total_short_trades}']},
+                {MetricNames.AVG_ORDERS_PER_TRADE: [f'{avg_orders_per_trade:.01f}']},
+                {MetricNames.ORDERS_LONG_SHORT: [f'{total_buys} / {total_sells}']},
+                {MetricNames.CONTRACTS_LONG_SHORT: [f'{total_buy_contracts} / {total_sell_contracts}']},
+                {MetricNames.SCALED_WINS: [f'{int(win_scaled_count):,}', f'{win_scaled_count_color}']},
+                {MetricNames.MAX_WIN_SZE: [f'{int(win_max_size)}']},
+                # {"": [f'']},
+                {MetricNames.LAST_UPDATED: [f'{datetime.now().strftime("%m/%d %H:%M")}']},
                 # {"Account": f'{account_name}'}
             ]
 
@@ -321,23 +359,24 @@ def compute_trade_stats(fill_data, es_contract_value):
             alert_duration_default = 20
             alert_duration_critical = 60
             alert_min_interval_secs_default = 600 # 10 mins
+            alert_extramsg_default = ""
             alerts_data = [
-                (overtrade_msg, False, overtrade_critical),
-                (pnl_msg, False, pnl_critical),
-                (winrate_msg if completed_trades > 3 else "", False, winrate_critical),
-                (profitfactor_msg if completed_trades > 3 else "", False, profitfactor_critical),
-                (losing_streak_msg, False, losingstreak_critical),
-                (loss_max_size_msg, False, loss_max_size_critical),
-                (loss_scaled_count_msg, False, loss_scaled_count_critical),
+                (overtrade_msg, False, overtrade_critical, overtrade_extramsg),
+                (pnl_msg, False, pnl_critical, alert_extramsg_default),
+                (winrate_msg if completed_trades > 3 else "", False, winrate_critical, winrate_extramsg),
+                (profitfactor_msg if completed_trades > 3 else "", False, profitfactor_critical, profitfactor_extramsg),
+                (losing_streak_msg, False, losingstreak_critical, alert_extramsg_default),
+                (loss_max_size_msg, False, loss_max_size_critical, loss_max_size_extramsg),
+                (loss_scaled_count_msg, False, loss_scaled_count_critical, alert_extramsg_default),
             ]
 
             critical_alerts = []
             non_critical_alerts = []
 
             # TODO lambda sort based on critical when adding trading_alerts to simplify
-            for msg, show_once, critical in alerts_data:
+            for msg, show_once, critical, extra_msg in alerts_data:
                 if msg:
-                    alert = AlertMessage(msg, account_name, alert_duration_critical if critical else alert_duration_default, show_once, alert_min_interval_secs_default, critical)
+                    alert = AlertMessage(msg, account_name, alert_duration_critical if critical else alert_duration_default, show_once, alert_min_interval_secs_default, critical, extra_msg)
                     if critical:
                         critical_alerts.append(alert)
                     else:
@@ -363,11 +402,11 @@ def evaluate_conditions(value, conditions):
     for cond in conditions:
         if isinstance(cond, dict):
             if cond["expr"](value):
-                return cond["color"], cond["msg"], cond["color"] == Color.CRITICAL
+                return cond["color"], cond["msg"], cond["color"] == Color.CRITICAL, cond.get("extra_msg", "")
         elif isinstance(cond, tuple) and len(cond) == 3:
             if cond[0](value):
-                return cond[1], cond[2], cond[1] == Color.CRITICAL
-    return Color.DEFAULT, "", False
+                return cond[1], cond[2], cond[1] == Color.CRITICAL, ""
+    return Color.DEFAULT, "", False, ""
 
 open_entry_time_str = ""  # Global variable to store the Open Entry time string
 open_duration_label = None
@@ -401,6 +440,8 @@ def create_stats_window_pyqt6(account_trading_stats):
     layout.addWidget(dummy_label, 1, 0, 1, 2)
     layout.setRowMinimumHeight(1, spacer_height)
 
+    extra_metrics_checkbox = QCheckBox("Extra Metrics")
+    extra_metrics_checkbox.setChecked(False)
     refresh_button = QPushButton("Refresh")
     pause_button = QPushButton("Pause Trading")
     close_button = QPushButton("Close")
@@ -425,7 +466,7 @@ def create_stats_window_pyqt6(account_trading_stats):
     def dropdown_changed(selected_key):
         for i in reversed(range(layout.count())):
             item = layout.itemAt(i)
-            if item and item.widget() and item.widget() not in (dropdown, dummy_label, refresh_button, pause_button, close_button):
+            if item and item.widget() and item.widget() not in (dropdown, dummy_label, extra_metrics_checkbox, refresh_button, pause_button, close_button):
                 item.widget().deleteLater()
                 layout.removeItem(item)
 
@@ -433,6 +474,8 @@ def create_stats_window_pyqt6(account_trading_stats):
         row_index = 2
         for stat in selected_stats:
             for key, value_color in stat.items():
+                if not extra_metrics_checkbox.isChecked() and key in keys_to_exclude: # Check if key should be excluded.
+                    continue
                 if isinstance(key, str) and not key:
                     layout.setRowMinimumHeight(row_index, 20)
                     row_index += 1
@@ -468,13 +511,21 @@ def create_stats_window_pyqt6(account_trading_stats):
         if selected_key in account_trading_alerts:
             selected_alerts = account_trading_alerts[selected_key]
             for alert in selected_alerts:
-                alert_manager.display_alert(alert.message, alert.account, alert.duration_secs, alert.display_once, alert.min_interval_secs, alert.critical)
+                alert_manager.display_alert(alert.message, alert.account, alert.duration_secs, alert.display_once, alert.min_interval_secs, alert.critical, alert.extra_msg)
         
     dropdown.currentTextChanged.connect(dropdown_changed)
     dropdown_changed(sorted_keys[0])
     
-    layout.addWidget(refresh_button, button_row_index_start, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
-    layout.addWidget(close_button, button_row_index_start + 1, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
+    def checkbox_changed(state):
+        selected_key = dropdown.currentText()
+        dropdown_changed(selected_key)
+        window.adjustSize()
+
+    extra_metrics_checkbox.stateChanged.connect(checkbox_changed)
+
+    layout.addWidget(extra_metrics_checkbox, button_row_index_start, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
+    layout.addWidget(refresh_button, button_row_index_start + 1, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
+    layout.addWidget(close_button, button_row_index_start + 2, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
     window.adjustSize()
 
     window.show()
@@ -490,7 +541,7 @@ def create_stats_window_pyqt6(account_trading_stats):
 
 def calculate_mins(open_entry_time_str, reference_time):
     if not open_entry_time_str:
-        return None
+        return 0
     try:
         open_entry_time = datetime.strptime(open_entry_time_str, DAY_TIME_FORMAT)
         current_year = reference_time.year
@@ -500,11 +551,11 @@ def calculate_mins(open_entry_time_str, reference_time):
         return minutes
     except ValueError as e:
         print(e)
-        return None
+        return 0
 
 def update_minutes():
     minutes = calculate_mins(open_entry_time_str, datetime.now())
-    if minutes is not None:
+    if minutes != 0:
         global open_duration_label
         open_duration_label.setText(f'{minutes}')
 
@@ -568,6 +619,8 @@ if __name__ == "__main__":
         print('no fills found')
 
 # TODO
+#   what % of wins are scaled wins
+## analyze more files to see any patterns/standouts (multi-file handling - even if no GUI yet)
 ## more features
 #   handle the ALL stats case (multi-account view)
 #   dropdown selection for which file (or maybe even multi-select)

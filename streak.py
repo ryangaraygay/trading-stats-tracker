@@ -1,4 +1,5 @@
 import datetime
+import my_utils
 
 class Streak:
     def __init__(self):
@@ -13,19 +14,20 @@ class Streak:
         self.total_trade_size = 0  # Store total trade size during the streak
         self.max_trade_size = 0  # Track max trade size
 
-    def process(self, is_win, is_long=True, trade_time=None, trade_size=1):
+    def process(self, is_win, is_long=True, entry_time=None, exit_time=None, trade_size=1):
         """
         Processes a trade result and updates the streak.
 
         Args:
             is_win (bool): True if the trade was a win, False otherwise.
             is_long (bool): True if the trade was a long position, False otherwise.
-            trade_time (datetime.timedelta): The time of the trade.
+            entry_time (datetime.timedelta): The entry time of the trade.
+            exit_time (datetime.timedelta): The exit time of the trade.
         """
-        # print(f'streak {self.streak} is_win {is_win} trade_time {trade_time}')
+        # print(f'streak {self.streak} is_win {is_win} entry_time {entry_time} exit_time {exit_time}')
 
         if self.streak == 0 and not is_win:
-            self.streak_start_time = trade_time
+            self.streak_start_time = entry_time
             self.total_trade_size += trade_size
             self.max_trade_size = trade_size  # Initialize max trade size
 
@@ -47,10 +49,10 @@ class Streak:
         else:
             if not self.is_last_trade_win:
                 self.streak -= 1
-                self.streak_last_trade_time = trade_time
+                self.streak_last_trade_time = entry_time
             else:
                 self.streak = -1
-                self.streak_start_time = trade_time
+                self.streak_start_time = exit_time
 
             self.total_trade_size += trade_size
             self.max_trade_size = max(self.max_trade_size, trade_size)
@@ -83,24 +85,13 @@ class Streak:
                 return f"{long_percentage:.0f}% long"
             else:
                 return f"{short_percentage:.0f}% short"
-    
-    def loss_trade_interval_str(self):
-        if self.streak < -1:
-            return f'{self.loss_trade_interval()} min/trade'
-        else:
+
+    def get_loss_elapsed_time_mins_str(self):
+        if self.streak > -2 or self.streak_start_time is None or self.streak_last_trade_time is None:
             return ""
-
-    def loss_trade_interval(self):
-        """Calculates and returns the average time interval (in minutes) between trades during the streak."""
-        if self.streak == 0 or self.streak_start_time is None or self.streak_last_trade_time is None:
-            return 0.00
-
-        elapsed_time_secs = (self.streak_last_trade_time - self.streak_start_time).total_seconds() / 60
-        if abs(self.streak) == 0:
-            return 0.00
-
-        interval = elapsed_time_secs / abs(self.streak)
-        return round(interval, 2)
+        
+        elapsed_time = int((self.streak_last_trade_time - self.streak_start_time).total_seconds() / 60)
+        return f'{elapsed_time} mins'
 
     def get_avg_size_of_current_streak_str(self):
         if self.streak < -1:
