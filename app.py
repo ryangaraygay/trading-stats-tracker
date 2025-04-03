@@ -242,8 +242,8 @@ def compute_trade_stats(fill_data, es_contract_value):
             time_between_trades_max_secs = my_utils.max_timedelta(time_between_trades)
 
             directional_bias = ""
-            long_bias_percentage = (total_long_trades / completed_trades) * 100
-            short_bias_percentage = (total_short_trades / completed_trades) * 100
+            long_bias_percentage = 0 if completed_trades == 0 else (total_long_trades / completed_trades) * 100
+            short_bias_percentage = 0 if completed_trades == 0 else (total_short_trades / completed_trades) * 100
 
             if long_bias_percentage == 100:
                 directional_bias = f"100% long"
@@ -311,7 +311,7 @@ def compute_trade_stats(fill_data, es_contract_value):
             open_entry_duration = calculate_mins(open_entry_time_i, datetime.now())
             open_entry_duration_str = "" if open_entry_duration == 0 else open_entry_duration
 
-            avg_orders_per_trade = (total_buys + total_sells) / (completed_trades * 2)
+            avg_orders_per_trade = 0 if completed_trades == 0 else (total_buys + total_sells) / (completed_trades * 2)
             
             trading_stats = [
                 {"Trades": [f'{completed_trades}', f'{overtrade_color}']},
