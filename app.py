@@ -278,7 +278,7 @@ def compute_trade_stats(fill_data, es_contract_value):
             ]
 
             losingstreak_conditions = [
-                {"expr": lambda x: x <= -5, "color": Color.CRITICAL, "msg": f"Stop. Extended losing streak. {streak_tracker.get_loss_mix()} in {streak_tracker.get_loss_elapsed_time_mins_str()}"},
+                {"expr": lambda x: x <= -4, "color": Color.CRITICAL, "msg": f"Stop. Extended losing streak. {streak_tracker.get_loss_mix()} in {streak_tracker.get_loss_elapsed_time_mins_str()}"},
                 {"expr": lambda x: x <= -2, "color": Color.WARNING, "msg": f"Slow down. Consecutive losses. {streak_tracker.get_loss_mix()} in {streak_tracker.get_loss_elapsed_time_mins_str()}"},
             ]
 
@@ -357,7 +357,7 @@ def compute_trade_stats(fill_data, es_contract_value):
             account_trading_stats[account_name] = trading_stats
 
             alert_duration_default = 20
-            alert_duration_critical = 60
+            alert_duration_critical = 120
             alert_min_interval_secs_default = 600 # 10 mins
             alert_extramsg_default = ""
             alerts_data = [
