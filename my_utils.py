@@ -1,4 +1,5 @@
-from datetime import timedelta
+from datetime import timedelta, datetime
+from constants import CONST
 
 def find_key_with_lowest_order_id(data):
     """
@@ -78,3 +79,27 @@ def format_timedelta(timedelta_obj):
     minutes = total_seconds // 60
     seconds = (total_seconds % 60) // 60
     return f"{minutes:02d}:{seconds:02d}"
+
+def add_unique_namedtuple(data_list, new_namedtuple):
+    existing_combinations = set((t.account_name, t.order_id) for t in data_list)
+    new_combination = (new_namedtuple.account_name, new_namedtuple.order_id)
+
+    if new_combination not in existing_combinations:
+        data_list.append(new_namedtuple)
+        return True
+    else:
+        return False
+
+def calculate_mins(open_entry_time_str, reference_time):
+    if not open_entry_time_str:
+        return 0
+    try:
+        open_entry_time = datetime.strptime(open_entry_time_str, CONST.DAY_TIME_FORMAT)
+        current_year = reference_time.year
+        open_entry_time = open_entry_time.replace(year=current_year)
+        time_difference = reference_time - open_entry_time
+        minutes = int(time_difference.total_seconds() / 60)
+        return minutes
+    except ValueError as e:
+        print(e)
+        return 0

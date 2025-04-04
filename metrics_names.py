@@ -1,0 +1,17 @@
+
+class MetricNames:
+    OPEN_ENTRY = "Open Entry"
+    OPEN_DURATION = "Open Duration"
+    AVG_SIZE = "Avg Size"
+    FIRST_ENTRY = "First Entry"
+    LAST_EXIT = "Last Exit"
+    INTERTRADE_AVG = "InterTrade Avg"
+    INTERTRADE_MAX = "InterTrade Max"
+    DURATION_AVG = "Duration Avg W/L"
+    DURATION_MAX = "Duration Max W/L"
+    AVG_ORDERS_PER_TRADE = "Avg Order per Trade"
+    ORDERS_LONG_SHORT = "Orders L/S"
+    CONTRACTS_LONG_SHORT = "Contracts L/S"
+    SCALED_WINS = "Scaled Wins"
+    MAX_WIN_SZE = "Max Win Size"
+    LAST_UPDATED = "Last Updated"
