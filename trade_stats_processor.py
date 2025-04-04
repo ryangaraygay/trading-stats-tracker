@@ -202,7 +202,7 @@ class TradeStatsProcessor:
                     else:
                         directional_bias = f"{short_bias_percentage:.0f}% short"
 
-                directional_bias_extramsg = "Try short instead" if long_bias_percentage >= 90 else "Try long instead" if long_bias_percentage <= 10 else directional_bias
+                directional_bias_extramsg = "Join the SHORT." if long_bias_percentage >= 90 else "Join the LONG." if long_bias_percentage <= 10 else directional_bias
 
                 # alert conditions, color change only if msg is empty
                 trade_conditions = [
