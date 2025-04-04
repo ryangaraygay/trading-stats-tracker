@@ -7,3 +7,4 @@ class DEFAULT:
     contract_symbol = "ESM5"
     contract_value = 50
     open_trade_duration_notice_mins = 10
+    open_duration_refresh_ms = 60000

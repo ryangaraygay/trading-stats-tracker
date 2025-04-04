@@ -9,14 +9,12 @@ from trade_stats_processor import TradeStatsProcessor
 from hammerspoon_alert_manager import HammerspoonAlertManager
 from constants import CONST
 
-from collections import defaultdict, namedtuple, Counter
+from collections import Counter
 from datetime import datetime
 from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QGridLayout, QPushButton, QComboBox, QCheckBox, QDialog
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont
 from log_file_selector import LogFileSelector
-
-# StatValue = namedtuple("Key", "Value")
 
 class TradingStatsApp(QApplication):
     def __init__(self, config: Config):
@@ -34,6 +32,10 @@ class TradingStatsApp(QApplication):
 
         self.dialog = LogFileSelector(config.directory_path, CONST.LOG_FILENAME_PATTERN, self.window)
         
+        self.duration_timer = QTimer()
+        self.duration_timer.timeout.connect(self.update_minutes)
+        self.duration_timer.start(config.open_duration_refresh_ms)
+
         self.reload_all_data_from_source()
         self.create_stats_window()
 
@@ -52,7 +54,6 @@ class TradingStatsApp(QApplication):
 
     extra_metrics_names = [
         MetricNames.AVG_SIZE,
-        MetricNames.OPEN_ENTRY,
         MetricNames.FIRST_ENTRY,
         MetricNames.LAST_EXIT,
         MetricNames.INTERTRADE_AVG,
@@ -106,8 +107,6 @@ class TradingStatsApp(QApplication):
                 self.processor.compute_trade_stats(fill_data, config.contract_value)
                 dropdown_changed(selected_key) #re-render with the updated data.
                 self.existing_fill_count = current_fill_count
-            else:
-                print('No change in fill count. No refresh.')
 
         def close_app():
             self.quit()
@@ -206,19 +205,14 @@ class TradingStatsApp(QApplication):
         self.window.adjustSize()
         self.window.show()
 
-        timer = QTimer()
-        timer.timeout.connect(refresh_data)
-        timer.start(config.auto_refresh_ms)
-
-        duration_timer = QTimer()
-        duration_timer.timeout.connect(self.update_minutes)
-        duration_timer.start(60000)  # 60000 milliseconds = 1 minute
+        self.timer = QTimer()
+        self.timer.timeout.connect(refresh_data)
+        self.timer.start(config.auto_refresh_ms)
 
     def update_minutes(self):
         minutes = my_utils.calculate_mins(self.open_entry_time_str, datetime.now())
         if minutes != 0:
             self.open_duration_label.setText(f'{minutes}')
-
             caution_minutes = config.open_trade_duration_notice_mins
             if minutes >= caution_minutes: 
                 self.open_duration_label.setStyleSheet(f"border: 1px solid black; color: yellow;")
@@ -230,12 +224,12 @@ if __name__ == "__main__":
     sys.exit(app.exec())
 
 # TODO
-#   add metric -> current drawdown (peak to current P/L)
+## add metric
+#   current drawdown (peak to current P/L)
+## more features
 #   support multi-file selection and remove single_log_filepath
 #   analyze more files to see any patterns/standouts
-## more features
 #   handle the ALL stats case (multi-account view)
-#   what % of wins are scaled wins
 
 ## improvements
 #   calculate average through the loop instead of lambda

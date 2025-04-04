@@ -10,3 +10,4 @@ class Config:
         self.contract_symbol = DEFAULT.contract_symbol
         self.contract_value = DEFAULT.contract_value
         self.open_trade_duration_notice_mins = DEFAULT.open_trade_duration_notice_mins
+        self.open_duration_refresh_ms = DEFAULT.open_duration_refresh_ms
