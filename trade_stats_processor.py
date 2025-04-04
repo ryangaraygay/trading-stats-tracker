@@ -198,14 +198,16 @@ class TradeStatsProcessor:
                 short_bias_percentage = 0 if completed_trades == 0 else (total_short_trades / completed_trades) * 100
 
                 if long_bias_percentage == 100:
-                    directional_bias = f"100% long"
+                    directional_bias = f"100% long."
                 elif short_bias_percentage == 100:
-                    directional_bias = f"100% short"
+                    directional_bias = f"100% short."
                 else:
                     if long_bias_percentage > short_bias_percentage:
                         directional_bias = f"{long_bias_percentage:.0f}% long"
                     else:
                         directional_bias = f"{short_bias_percentage:.0f}% short"
+
+                directional_bias_extramsg = "Try short instead" if long_bias_percentage >= 90 else "Try long instead" if long_bias_percentage <= 10 else directional_bias
 
                 # alert conditions, color change only if msg is empty
                 trade_conditions = [
@@ -220,12 +222,12 @@ class TradeStatsProcessor:
                 ]
 
                 winrate_conditions = [
-                    {"expr": lambda x: x < 20, "color": Color.CRITICAL, "msg": "Stop. Win Rate very low.", "extra_msg": f"{directional_bias}"},
-                    {"expr": lambda x: x < 40, "color": Color.WARNING, "msg": "Slow down. Win Rate low.", "extra_msg": f"{directional_bias}"},
+                    {"expr": lambda x: x < 20, "color": Color.CRITICAL, "msg": "Stop. Win Rate very low.", "extra_msg": f"{directional_bias_extramsg}"},
+                    {"expr": lambda x: x < 40, "color": Color.WARNING, "msg": "Slow down. Win Rate low.", "extra_msg": f"{directional_bias_extramsg}"},
                 ]
 
                 profitfactor_conditions = [
-                    {"expr": lambda x: x < 0.5, "color": Color.CRITICAL, "msg": "Stop. Profit Factor very low.", "extra_msg": f"{directional_bias}"},
+                    {"expr": lambda x: x < 0.5, "color": Color.CRITICAL, "msg": "Stop. Profit Factor very low.", "extra_msg": f"{directional_bias_extramsg}"},
                     {"expr": lambda x: x > 1.5, "color": Color.OK, "msg": ""},
                 ]
 
@@ -245,8 +247,8 @@ class TradeStatsProcessor:
                 ]
 
                 drawdown_conditions = [
-                    {"expr": lambda x: x < -3000, "color": Color.CRITICAL, "msg": "Stop. Large drawdown from peak.", "extra_msg": f'{current_drawdown:+,}'},
-                    {"expr": lambda x: x < -1000, "color": Color.WARNING, "msg": "Slow down. Notable drawdown from peak.", "extra_msg": f'{current_drawdown:+,}'},
+                    {"expr": lambda x: x < -3000, "color": Color.CRITICAL, "msg": "Stop. Large drawdown.", "extra_msg": f'{current_drawdown:+,}'},
+                    {"expr": lambda x: x < -1000, "color": Color.WARNING, "msg": "Slow down. Notable drawdown.", "extra_msg": f'{current_drawdown:+,}'},
                 ]
 
                 winrate_color, winrate_msg, winrate_critical, winrate_extramsg = self.evaluate_conditions(win_rate, winrate_conditions)
