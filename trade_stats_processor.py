@@ -37,7 +37,7 @@ class TradeStatsProcessor:
         self.account_names_loaded = sorted(list(account_names))
         
     def get_fills(self, file_paths, contract_symbol):
-        fill_data = []
+        unique_trades_dict = {}
         for file_path in file_paths:
             pattern = rf'OrderDirectory::orderFilled\(\) order: ID: (\S+) (\S+) {contract_symbol}\.CME.*(Filled BUY|Filled SELL).*Qty:(\d+\.\d+).*Last Fill Time:\s*(\d{{2}}/\d{{2}}/\d{{4}} \d{{1,2}}:\d{{2}} [AP]M).*fill price: (\d+\.\d+)'
             with open(file_path, 'r') as file:
@@ -50,16 +50,10 @@ class TradeStatsProcessor:
                         quantity = float(match.group(4))
                         fill_time_str = match.group(5)
                         fill_price = float(match.group(6))
+                        fill_time = datetime.strptime(fill_time_str, "%m/%d/%Y %I:%M %p")
+                        unique_trades_dict[account_name, order_id] = Trade(account_name, order_id, order_type, quantity, fill_price, fill_time)
 
-                        fill_time = None
-                        try:
-                            # Parse the datetime string
-                            fill_time = datetime.strptime(fill_time_str, "%m/%d/%Y %I:%M %p")
-                        except ValueError:
-                            print(f"Error parsing datetime: {fill_time_str}")
-                            return None
-
-                        my_utils.add_unique_namedtuple(fill_data, Trade(account_name, order_id, order_type, quantity, fill_price, fill_time))
+        fill_data = list(unique_trades_dict.values())
         if len(fill_data) == 0:
             print('No Fills Found')
         

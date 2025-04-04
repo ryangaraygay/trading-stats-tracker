@@ -80,16 +80,6 @@ def format_timedelta(timedelta_obj):
     seconds = (total_seconds % 60) // 60
     return f"{minutes:02d}:{seconds:02d}"
 
-def add_unique_namedtuple(data_list, new_namedtuple):
-    existing_combinations = set((t.account_name, t.order_id) for t in data_list)
-    new_combination = (new_namedtuple.account_name, new_namedtuple.order_id)
-
-    if new_combination not in existing_combinations:
-        data_list.append(new_namedtuple)
-        return True
-    else:
-        return False
-
 def calculate_mins(open_entry_time_str, reference_time):
     if not open_entry_time_str:
         return 0

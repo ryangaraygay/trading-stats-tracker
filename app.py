@@ -229,12 +229,10 @@ if __name__ == "__main__":
 
 # TODO
 ## more features
-#   analyze more files to see any patterns/standouts
+#   lock out MotiveWave when critical alerts are fired (call hammerspoon function defined in config or build it here)
 #   handle the ALL stats case (multi-account view)
 
 ## improvements
 #   clarify config/defaults if secs, ms, mins (be as consistent as possible)
 #   calculate average through the loop instead of lambda
-#   profile and improve performance (so refresh freq can be higher)
-#   clean-up and organize code
 #   limit to one instance running, alert if attempting to open more
