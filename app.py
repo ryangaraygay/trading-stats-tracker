@@ -42,15 +42,11 @@ class TradingStatsApp(QApplication):
         print('Trading Stats App Initialized.')
 
     def reload_all_data_from_source(self):
-        fp = self.single_log_filepath()
-        self.processor.load_account_names(fp)
-        fill_data = self.processor.get_fills(fp, config.contract_symbol)
+        filepaths = self.dialog.get_selected_files()
+        self.processor.load_account_names(filepaths)
+        fill_data = self.processor.get_fills(filepaths, config.contract_symbol)
         self.existing_fill_count = len(fill_data)
         self.processor.compute_trade_stats(fill_data, config.contract_value)
-
-    def single_log_filepath(self):
-        sel_files = self.dialog.get_selected_files()
-        return sel_files[0] # TODO support multiple files as source
 
     extra_metrics_names = [
         MetricNames.AVG_SIZE,
@@ -101,7 +97,7 @@ class TradingStatsApp(QApplication):
         def refresh_data():
             refresh_button.setText(f'Refresh Fills [{datetime.now().strftime(CONST.DATE_TIME_FORMAT)}]')
             selected_key = self.dropdown.currentText()
-            fill_data = self.processor.get_fills(self.single_log_filepath(), config.contract_symbol)
+            fill_data = self.processor.get_fills(self.dialog.get_selected_files(), config.contract_symbol)
             current_fill_count = len(fill_data)
             if current_fill_count != self.existing_fill_count:
                 self.processor.compute_trade_stats(fill_data, config.contract_value)
@@ -233,7 +229,6 @@ if __name__ == "__main__":
 
 # TODO
 ## more features
-#   support multi-file selection and remove single_log_filepath
 #   analyze more files to see any patterns/standouts
 #   handle the ALL stats case (multi-account view)
 

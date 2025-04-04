@@ -22,44 +22,44 @@ class TradeStatsProcessor:
         self.account_trading_alerts = {}
         self.account_names_loaded = list()
 
-    def load_account_names(self, file_path):
+    def load_account_names(self, file_paths):
         account_names = set()
         pattern = r"ACCOUNT:\s*(\S+)\s+fcmId:"
-        with open(file_path, 'r') as file:
-            for line in file:
-                match = re.search(pattern, line)
-                if match:
-                    account_name = match.group(1)
-                    account_names.add(account_name)
+        for file_path in file_paths:
+            with open(file_path, 'r') as file:
+                for line in file:
+                    match = re.search(pattern, line)
+                    if match:
+                        account_name = match.group(1)
+                        account_names.add(account_name)
         account_names.add("simulated")
         account_names.add(CONST.SELECT_ACCOUNT)
         self.account_names_loaded = sorted(list(account_names))
         
-    @staticmethod
-    def get_fills(file_path, contract_symbol):
+    def get_fills(self, file_paths, contract_symbol):
         fill_data = []
-        pattern = rf'OrderDirectory::orderFilled\(\) order: ID: (\S+) (\S+) {contract_symbol}\.CME.*(Filled BUY|Filled SELL).*Qty:(\d+\.\d+).*Last Fill Time:\s*(\d{{2}}/\d{{2}}/\d{{4}} \d{{1,2}}:\d{{2}} [AP]M).*fill price: (\d+\.\d+)'
-        with open(file_path, 'r') as file:
-            for line in file:
-                match = re.search(pattern, line)
-                if match:
-                    order_id = int(re.sub(r"[^0-9]", "", match.group(1))) #SIM-dd (we need this for ordering since fill_time has no second value and so inaccurate)
-                    account_name = match.group(2)
-                    order_type = match.group(3)
-                    quantity = float(match.group(4))
-                    fill_time_str = match.group(5)
-                    fill_price = float(match.group(6))
+        for file_path in file_paths:
+            pattern = rf'OrderDirectory::orderFilled\(\) order: ID: (\S+) (\S+) {contract_symbol}\.CME.*(Filled BUY|Filled SELL).*Qty:(\d+\.\d+).*Last Fill Time:\s*(\d{{2}}/\d{{2}}/\d{{4}} \d{{1,2}}:\d{{2}} [AP]M).*fill price: (\d+\.\d+)'
+            with open(file_path, 'r') as file:
+                for line in file:
+                    match = re.search(pattern, line)
+                    if match:
+                        order_id = int(re.sub(r"[^0-9]", "", match.group(1))) #SIM-dd (we need this for ordering since fill_time has no second value and so inaccurate)
+                        account_name = match.group(2)
+                        order_type = match.group(3)
+                        quantity = float(match.group(4))
+                        fill_time_str = match.group(5)
+                        fill_price = float(match.group(6))
 
-                    fill_time = None
-                    try:
-                        # Parse the datetime string
-                        fill_time = datetime.strptime(fill_time_str, "%m/%d/%Y %I:%M %p")
-                    except ValueError:
-                        print(f"Error parsing datetime: {fill_time_str}")
-                        return None
+                        fill_time = None
+                        try:
+                            # Parse the datetime string
+                            fill_time = datetime.strptime(fill_time_str, "%m/%d/%Y %I:%M %p")
+                        except ValueError:
+                            print(f"Error parsing datetime: {fill_time_str}")
+                            return None
 
-                    my_utils.add_unique_namedtuple(fill_data, Trade(account_name, order_id, order_type, quantity, fill_price, fill_time))
-
+                        my_utils.add_unique_namedtuple(fill_data, Trade(account_name, order_id, order_type, quantity, fill_price, fill_time))
         if len(fill_data) == 0:
             print('No Fills Found')
         

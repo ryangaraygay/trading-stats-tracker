@@ -45,7 +45,7 @@ class LogFileSelector(QDialog):
 
         self.list_widget = QListWidget()
         self.list_widget.setFont(QFont("Arial", 27))
-        # self.list_widget.setSelectionMode(QListWidget.SelectionMode.MultiSelection) # TODO support multiple files as source
+        self.list_widget.setSelectionMode(QListWidget.SelectionMode.MultiSelection)
         layout.addWidget(self.list_widget)
 
         self.populate_list()
