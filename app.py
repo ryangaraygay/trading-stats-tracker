@@ -103,7 +103,6 @@ class TradingStatsApp(QApplication):
             fill_data = self.processor.get_fills(self.single_log_filepath(), config.contract_symbol)
             current_fill_count = len(fill_data)
             if current_fill_count != self.existing_fill_count:
-                print(f'current_fill_count {current_fill_count} existing_fill_count {self.existing_fill_count}')
                 self.processor.compute_trade_stats(fill_data, config.contract_value)
                 dropdown_changed(selected_key) #re-render with the updated data.
                 self.existing_fill_count = current_fill_count
@@ -190,6 +189,7 @@ class TradingStatsApp(QApplication):
                     else:
                         if existing_selection_key in sorted_keys:
                             self.dropdown.setCurrentText(existing_selection_key)
+                            dropdown_changed(existing_selection_key)
                         else:
                             self.dropdown.setCurrentText(CONST.SELECT_ACCOUNT)
 
@@ -224,14 +224,13 @@ if __name__ == "__main__":
     sys.exit(app.exec())
 
 # TODO
-## add metric
-#   current drawdown (peak to current P/L)
 ## more features
 #   support multi-file selection and remove single_log_filepath
 #   analyze more files to see any patterns/standouts
 #   handle the ALL stats case (multi-account view)
 
 ## improvements
+#   clarify config/defaults if secs, ms, mins (be as consistent as possible)
 #   calculate average through the loop instead of lambda
 #   profile and improve performance (so refresh freq can be higher)
 #   clean-up and organize code

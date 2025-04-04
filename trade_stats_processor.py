@@ -191,6 +191,7 @@ class TradeStatsProcessor:
                 win_max_secs = my_utils.max_timedelta(win_duration)
                 time_between_trades_avg_secs = my_utils.average_timedelta(time_between_trades)
                 time_between_trades_max_secs = my_utils.max_timedelta(time_between_trades)
+                current_drawdown = -1 * int(max_realized_profit - total_profit_or_loss)
 
                 directional_bias = ""
                 long_bias_percentage = 0 if completed_trades == 0 else (total_long_trades / completed_trades) * 100
@@ -209,13 +210,13 @@ class TradeStatsProcessor:
                 # alert conditions, color change only if msg is empty
                 trade_conditions = [
                     {"expr": lambda x: x > 20, "color": Color.CRITICAL, "msg": "Stop. Overtrading.", "extra_msg": f"{completed_trades} trades"},
-                    {"expr": lambda x: x > 10, "color": Color.WARNING, "msg": "Slow down. Too many trades.", "extra_msg": f"{completed_trades} trades"}
+                    {"expr": lambda x: x > 10, "color": Color.WARNING, "msg": "Slow down. Too many trades.", "extra_msg": f"{completed_trades}"}
                 ]
 
                 pnl_conditions = [
-                    {"expr": lambda x: x < -2000, "color": Color.CRITICAL, "msg": "Stop. Too much Loss."},
-                    {"expr": lambda x: x < -1000, "color": Color.WARNING, "msg": "Slow down. Losing."},
-                    {"expr": lambda x: x >= 1000, "color": Color.OK, "msg": "Wind down. Protect gains."}
+                    {"expr": lambda x: x < -2000, "color": Color.CRITICAL, "msg": "Stop. Too much Loss.", "extra_msg": f'{int(total_profit_or_loss):+,}'},
+                    {"expr": lambda x: x < -1000, "color": Color.WARNING, "msg": "Slow down. Losing.", "extra_msg": f'{int(total_profit_or_loss):+,}'},
+                    {"expr": lambda x: x >= 1000, "color": Color.OK, "msg": "Wind down. Protect gains.", "extra_msg": f'{int(total_profit_or_loss):+,}'}
                 ]
 
                 winrate_conditions = [
@@ -243,13 +244,19 @@ class TradeStatsProcessor:
                     {"expr": lambda x: x >= 3, "color": Color.WARNING, "msg": "Scale up winners only."},
                 ]
 
+                drawdown_conditions = [
+                    {"expr": lambda x: x < -3000, "color": Color.CRITICAL, "msg": "Stop. Large drawdown from peak.", "extra_msg": f'{current_drawdown:+,}'},
+                    {"expr": lambda x: x < -1000, "color": Color.WARNING, "msg": "Slow down. Notable drawdown from peak.", "extra_msg": f'{current_drawdown:+,}'},
+                ]
+
                 winrate_color, winrate_msg, winrate_critical, winrate_extramsg = self.evaluate_conditions(win_rate, winrate_conditions)
                 overtrade_color, overtrade_msg, overtrade_critical, overtrade_extramsg = self.evaluate_conditions(completed_trades, trade_conditions)
-                pnl_color, pnl_msg, pnl_critical, extra_msg_placeholder = self.evaluate_conditions(total_profit_or_loss, pnl_conditions)
+                pnl_color, pnl_msg, pnl_critical, pnl_extramsg = self.evaluate_conditions(total_profit_or_loss, pnl_conditions)
                 profitfactor_color, profitfactor_msg, profitfactor_critical, profitfactor_extramsg = self.evaluate_conditions(profit_factor, profitfactor_conditions)
                 losing_streak_color, losing_streak_msg, losingstreak_critical, extra_msg_placeholder = self.evaluate_conditions(streak_tracker.streak, losingstreak_conditions)
                 loss_max_size_color, loss_max_size_msg, loss_max_size_critical, loss_max_size_extramsg = self.evaluate_conditions(loss_max_size, loss_max_size_conditions)
                 loss_scaled_count_color, loss_scaled_count_msg, loss_scaled_count_critical, extra_msg_placeholder = self.evaluate_conditions(loss_scaled_count, loss_scaled_count_conditions)
+                drawdown_color, drawdown_msg, drawdown_critical, drawdown_extramsg = self.evaluate_conditions(current_drawdown, drawdown_conditions)
                 
                 # color change only (can be converted to above approach too with resulting empty msg but only if there's benefit)  
                 open_size_color = Color.CAUTION if abs(position_size) > 3 else Color.DEFAULT
@@ -280,6 +287,7 @@ class TradeStatsProcessor:
                     {"Best/Worst": [f'{streak_tracker.best_streak:+} / {streak_tracker.worst_streak:+}']},
                     {"": [f'']},
                     {"Profit/Loss": [f'{int(total_profit_or_loss):+,}', f'{pnl_color}']},
+                    {"Drawdown": [f'{int(current_drawdown):+,}', f'{drawdown_color}']},
                     {"Peak P/L": [f'{int(max_realized_profit):+,} / {int(max_realized_drawdown):+,}']},
                     {"Max Trade P/L": [f'{int(win_max_value):+,} / {int(loss_max_value):+,}']},
                     {"": [f'']},
@@ -310,12 +318,13 @@ class TradeStatsProcessor:
                 alert_extramsg_default = ""
                 alerts_data = [
                     (overtrade_msg, False, overtrade_critical, overtrade_extramsg),
-                    (pnl_msg, False, pnl_critical, alert_extramsg_default),
+                    (pnl_msg, False, pnl_critical, pnl_extramsg),
                     (winrate_msg if completed_trades > 3 else "", False, winrate_critical, winrate_extramsg),
                     (profitfactor_msg if completed_trades > 3 else "", False, profitfactor_critical, profitfactor_extramsg),
                     (losing_streak_msg, False, losingstreak_critical, alert_extramsg_default),
                     (loss_max_size_msg, False, loss_max_size_critical, loss_max_size_extramsg),
                     (loss_scaled_count_msg, False, loss_scaled_count_critical, alert_extramsg_default),
+                    (drawdown_msg, False, drawdown_critical, drawdown_extramsg),
                 ]
 
                 critical_alerts = []
