@@ -12,11 +12,12 @@ from datetime import timedelta, datetime
 from constants import CONST
 from metrics_names import MetricNames
 from alert_message import AlertMessage
-from default import DEFAULT
+from config import Config
 
 class TradeStatsProcessor:
 
-    def __init__(self):
+    def __init__(self, config: Config):
+        self.config = config
         self.account_trading_stats = {}
         self.account_trading_alerts = {}
         self.account_names_loaded = list()
@@ -338,9 +339,9 @@ class TradeStatsProcessor:
                         alert = AlertMessage(
                             msg, 
                             account_name, 
-                            DEFAULT.alert_duration_critical if critical else DEFAULT.alert_duration_default, 
+                            self.config.alert_duration_critical if critical else self.config.alert_duration_default, 
                             show_once, 
-                            DEFAULT.alert_min_interval_secs_default, 
+                            self.config.alert_min_interval_secs_default, 
                             critical, 
                             extra_msg)
                         if critical:
@@ -353,6 +354,9 @@ class TradeStatsProcessor:
                 trading_alerts.extend(non_critical_alerts)
 
                 self.account_trading_alerts[account_name] = trading_alerts
+        else:
+            self.account_trading_stats.clear()
+            self.account_trading_alerts.clear()
 
         account_names_no_fills = [item for item in self.account_names_loaded if item not in account_names_with_fills]
         trading_stats = [

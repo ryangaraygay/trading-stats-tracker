@@ -21,7 +21,7 @@ class TradingStatsApp(QApplication):
         super().__init__(sys.argv)
             
         self.config = config
-        self.processor = TradeStatsProcessor()
+        self.processor = TradeStatsProcessor(config)
         self.alert_manager = HammerspoonAlertManager()
         self.window = QWidget()
         self.dropdown = QComboBox()
@@ -92,13 +92,14 @@ class TradingStatsApp(QApplication):
 
         extra_metrics_checkbox = QCheckBox("Extra Metrics")
         extra_metrics_checkbox.setChecked(False)
-        refresh_button = QPushButton("Refresh")
+        refresh_button = QPushButton("Refresh Fills")
         pause_button = QPushButton("Pause Trading")
         close_button = QPushButton("Close")
         select_logfile_button = QPushButton("Select Log File(s)")
+        refresh_all_button = QPushButton("Refresh All")
 
         def refresh_data():
-            refresh_button.setText(f'Refresh [{datetime.now().strftime(CONST.DATE_TIME_FORMAT)}]')
+            refresh_button.setText(f'Refresh Fills [{datetime.now().strftime(CONST.DATE_TIME_FORMAT)}]')
             selected_key = self.dropdown.currentText()
             fill_data = self.processor.get_fills(self.single_log_filepath(), config.contract_symbol)
             current_fill_count = len(fill_data)
@@ -109,14 +110,14 @@ class TradingStatsApp(QApplication):
 
         def close_app():
             self.quit()
-            
+
         refresh_button.clicked.connect(refresh_data)
         close_button.clicked.connect(close_app)
 
         def dropdown_changed(selected_key):
             for i in reversed(range(layout.count())):
                 item = layout.itemAt(i)
-                if item and item.widget() and item.widget() not in (self.dropdown, dummy_label, extra_metrics_checkbox, refresh_button, pause_button, close_button, select_logfile_button):
+                if item and item.widget() and item.widget() not in (self.dropdown, dummy_label, extra_metrics_checkbox, refresh_button, refresh_all_button, pause_button, close_button, select_logfile_button):
                     item.widget().deleteLater()
                     layout.removeItem(item)
 
@@ -171,36 +172,43 @@ class TradingStatsApp(QApplication):
 
         extra_metrics_checkbox.stateChanged.connect(checkbox_changed)
 
+        def refresh_all():
+            existing_selection_key = self.dropdown.currentText()
+            self.reload_all_data_from_source()
+            sorted_keys = sorted(list(self.processor.account_names_loaded))
+            self.dropdown.currentTextChanged.disconnect(dropdown_changed)
+            self.dropdown.clear()
+            self.dropdown.addItems(sorted_keys)
+            if not existing_selection_key:
+                self.dropdown.setCurrentText(CONST.SELECT_ACCOUNT)
+                dropdown_changed(CONST.SELECT_ACCOUNT)
+            else:
+                if existing_selection_key in sorted_keys:
+                    self.dropdown.setCurrentText(existing_selection_key)
+                    dropdown_changed(existing_selection_key)
+                else:
+                    self.dropdown.setCurrentText(CONST.SELECT_ACCOUNT)
+                    dropdown_changed(CONST.SELECT_ACCOUNT)
+            self.dropdown.currentTextChanged.connect(dropdown_changed)
+
+        refresh_all_button.clicked.connect(refresh_all)
+
         def select_log_files():
             old_file_selection = self.dialog.get_selected_files()
             result = self.dialog.exec()
             if result == QDialog.DialogCode.Accepted:
                 new_file_selection = self.dialog.get_selected_files()
                 if Counter(old_file_selection) != Counter(new_file_selection):
-                    existing_selection_key = self.dropdown.currentText()
-                    self.reload_all_data_from_source()
-                    sorted_keys = sorted(list(self.processor.account_names_loaded))
-                    self.dropdown.currentTextChanged.disconnect(dropdown_changed)
-                    self.dropdown.clear()
-                    self.dropdown.addItems(sorted_keys)
-                    self.dropdown.currentTextChanged.connect(dropdown_changed)
-                    if not existing_selection_key:
-                        self.dropdown.setCurrentText(CONST.SELECT_ACCOUNT)
-                    else:
-                        if existing_selection_key in sorted_keys:
-                            self.dropdown.setCurrentText(existing_selection_key)
-                            dropdown_changed(existing_selection_key)
-                        else:
-                            self.dropdown.setCurrentText(CONST.SELECT_ACCOUNT)
-
+                    refresh_all()
+                    
         select_logfile_button.clicked.connect(select_log_files)
-        
         
         button_row_index_start = 38 # fixed so we don't have to window adjust when refreshing and some accounts have no fills (and therefore no stats)
         layout.addWidget(extra_metrics_checkbox, button_row_index_start, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(select_logfile_button, button_row_index_start + 1, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(refresh_button, button_row_index_start + 2, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(close_button, button_row_index_start + 3, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(refresh_all_button, button_row_index_start + 3, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(close_button, button_row_index_start + 4, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
         
         self.window.adjustSize()
         self.window.show()
