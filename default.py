@@ -1,4 +1,5 @@
 class DEFAULT:
+    alert_enabled = True
     alert_duration_default = 20
     alert_duration_critical = 120
     alert_min_interval_secs_default = 600 # 10 mins

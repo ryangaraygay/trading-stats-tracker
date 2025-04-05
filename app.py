@@ -153,15 +153,16 @@ class TradingStatsApp(QApplication):
 
             self.update_minutes()
             
-            contains_critical = False
+            contains_critical_alerts = False
             if selected_key in self.processor.account_trading_alerts:
                 selected_alerts = self.processor.account_trading_alerts[selected_key]
                 for alert in selected_alerts:
-                    self.alert_manager.display_alert(alert.message, alert.account, alert.duration_secs, alert.display_once, alert.min_interval_secs, alert.critical, alert.extra_msg)
-                    contains_critical |= alert.critical
+                    if config.alert_enabled:
+                        self.alert_manager.display_alert(alert.message, alert.account, alert.duration_secs, alert.display_once, alert.min_interval_secs, alert.critical, alert.extra_msg)
+                    contains_critical_alerts |= alert.critical
             
             if (config.block_app_on_critical_alerts):
-                if contains_critical:
+                if contains_critical_alerts:
                     self.alert_manager.trigger_event(
                         "block-app", 
                         {"app_name": config.block_app_name, "duration": config.alert_duration_critical}, # sync duration of both block and alert 
@@ -229,7 +230,8 @@ class TradingStatsApp(QApplication):
             caution_minutes = config.open_trade_duration_notice_mins
             if minutes >= caution_minutes: 
                 self.open_duration_label.setStyleSheet(f"border: 1px solid black; color: yellow;")
-                self.alert_manager.display_alert(f"Trade open for > 10 mins", self.dropdown.currentText(), 5, False, 600, False)
+                if config.alert_enabled:
+                    self.alert_manager.display_alert(f"Trade open for > 10 mins", self.dropdown.currentText(), 5, False, 600, False)
 
 if __name__ == "__main__":
     config = Config()
@@ -238,7 +240,6 @@ if __name__ == "__main__":
 
 # TODO
 ## more features
-#   lock out MotiveWave when critical alerts are fired (call hammerspoon function defined in config or build it here)
 #   handle the ALL stats case (multi-account view)
 
 ## improvements
