@@ -11,3 +11,5 @@ class Config:
         self.contract_value = DEFAULT.contract_value
         self.open_trade_duration_notice_mins = DEFAULT.open_trade_duration_notice_mins
         self.open_duration_refresh_ms = DEFAULT.open_duration_refresh_ms
+        self.block_app_on_critical_alerts = DEFAULT.block_app_on_critical_alerts
+        self.block_app_name = DEFAULT.block_app_name

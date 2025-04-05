@@ -2,6 +2,10 @@ import threading
 import time
 import datetime
 import subprocess
+import urllib.parse
+import os
+
+from urllib.parse import quote
 
 class HammerspoonAlertManager:
     """
@@ -10,6 +14,44 @@ class HammerspoonAlertManager:
     def __init__(self):
         self._lock = threading.Lock()
         self._account_message_data = {}  # Store display data per account and message
+        self._last_event_call = {}  # Store last call time per event name
+
+    def trigger_event(self, event_name: str, params: dict = None, min_interval_secs: int = 60):
+        """
+        Triggers a Hammerspoon event via its URL scheme, respecting the minimum interval.
+
+        Args:
+            event_name: The name of the Hammerspoon event to trigger.
+            params: A dictionary of parameters to pass with the event. These will be URL-encoded.
+            min_interval_secs: Minimum interval in seconds since the last call for this event name.
+        """
+        threading.Thread(target=self._trigger_event_thread, args=(event_name, params, min_interval_secs)).start()
+
+    def _trigger_event_thread(self, event_name: str, params: dict, min_interval_secs: int):
+        with self._lock:
+            now = datetime.datetime.now()
+
+            if event_name in self._last_event_call:
+                last_call_time = self._last_event_call[event_name]
+                time_since_last_call = (now - last_call_time).total_seconds()
+                if time_since_last_call < min_interval_secs:
+                    return  # Discard the call
+
+            encoded_params = ""
+            if params:
+                encoded_params = quote(urllib.parse.urlencode(params))
+
+            url = f"hammerspoon://{event_name}?p={encoded_params}"
+            open_path = "/usr/bin/open"
+
+            if os.path.exists(open_path):
+                try:
+                    subprocess.run([open_path, "-g", url], check=True)
+                    self._last_event_call[event_name] = now
+                except subprocess.CalledProcessError as e:
+                    print(f"Error triggering Hammerspoon event '{event_name}': {e}")
+            else:
+                print(f"Error: '{open_path}' not found.")
 
     def _execute_hammerspoon_lua(self, lua_code: str):
         """Executes Lua code in Hammerspoon using hammerspoon_bridge with -c."""

@@ -95,7 +95,6 @@ class TradingStatsApp(QApplication):
         refresh_all_button = QPushButton("Refresh All")
 
         def refresh_data():
-            refresh_button.setText(f'Refresh Fills [{datetime.now().strftime(CONST.DATE_TIME_FORMAT)}]')
             selected_key = self.dropdown.currentText()
             fill_data = self.processor.get_fills(self.dialog.get_selected_files(), config.contract_symbol)
             current_fill_count = len(fill_data)
@@ -103,6 +102,7 @@ class TradingStatsApp(QApplication):
                 self.processor.compute_trade_stats(fill_data, config.contract_value)
                 dropdown_changed(selected_key) #re-render with the updated data.
                 self.existing_fill_count = current_fill_count
+            refresh_button.setText(f'Refresh Fills [{datetime.now().strftime(CONST.DATE_TIME_FORMAT)}]')
 
         def close_app():
             self.quit()
@@ -153,11 +153,20 @@ class TradingStatsApp(QApplication):
 
             self.update_minutes()
             
+            contains_critical = False
             if selected_key in self.processor.account_trading_alerts:
                 selected_alerts = self.processor.account_trading_alerts[selected_key]
                 for alert in selected_alerts:
                     self.alert_manager.display_alert(alert.message, alert.account, alert.duration_secs, alert.display_once, alert.min_interval_secs, alert.critical, alert.extra_msg)
+                    contains_critical |= alert.critical
             
+            if (config.block_app_on_critical_alerts):
+                if contains_critical:
+                    self.alert_manager.trigger_event(
+                        "block-app", 
+                        {"app_name": config.block_app_name, "duration": config.alert_duration_critical}, # sync duration of both block and alert 
+                        config.alert_min_interval_secs_default) # sync quiet period of both block and alert 
+
         self.dropdown.currentTextChanged.connect(dropdown_changed)
         self.dropdown.setCurrentText(CONST.SELECT_ACCOUNT)
         
