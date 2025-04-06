@@ -239,8 +239,9 @@ if __name__ == "__main__":
     sys.exit(app.exec())
 
 # TODO
-#   Config.min_interval_secs should also configurable per level
-#       even better they should not be retriggered if the condition has improved (or has not gotten worse)
+#   alerts/blocks should not be retriggered unless 
+#       min_interval_secs has lapsed (already in place)
+#       or completed trade count has increased
 ## more features
 #   handle the ALL stats case (multi-account view)
 #       add ALL Accounts in account list

@@ -5,6 +5,7 @@ class Config:
     def __init__(self):
         self.alert_enabled = DEFAULT.alert_enabled
         self.alert_duration_default = DEFAULT.alert_duration_default
+        self.alert_duration_warning = DEFAULT.alert_duration_warning
         self.alert_duration_critical = DEFAULT.alert_duration_critical
         self.alert_min_interval_secs_default = DEFAULT.alert_min_interval_secs_default
         self.directory_path = DEFAULT.directory_path
