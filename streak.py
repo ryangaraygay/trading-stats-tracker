@@ -65,6 +65,17 @@ class Streak:
 
         # print(f'streak_start_time {self.streak_start_time} streak_last_trade_time {self.streak_last_trade_time}')
 
+    def get_extra_msg(self):
+        if self.streak >= -1:
+            return ""
+        
+        directional_bias = f'{self.get_loss_mix()} in {self.get_loss_elapsed_time_mins_str()}'
+        
+        total_losses = abs(self.streak)
+        long_bias_perc = (self.long_losses / total_losses) * 100
+
+        return "Join the SHORT." if long_bias_perc >= 90 else "Join the LONG." if long_bias_perc <= 10 else directional_bias
+
     def get_loss_mix(self):
         """
         Returns a string describing the composition of the losing streak.
@@ -72,6 +83,9 @@ class Streak:
         if self.streak >= -1:
             return ""
 
+        # note that there is some code duplication here and in get_extra_msg function
+        # as well as why explicitly compute short losses instead of just total minus longs
+        # this is intentional as a counter check
         total_losses = abs(self.streak)
         long_percentage = (self.long_losses / total_losses) * 100
         short_percentage = (self.short_losses / total_losses) * 100

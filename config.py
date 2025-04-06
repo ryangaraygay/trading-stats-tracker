@@ -1,4 +1,5 @@
 from default import DEFAULT
+from concern_level import ConcernLevel
 
 class Config:
     def __init__(self):
@@ -14,3 +15,19 @@ class Config:
         self.open_duration_refresh_ms = DEFAULT.open_duration_refresh_ms
         self.block_app_on_critical_alerts = DEFAULT.block_app_on_critical_alerts
         self.block_app_name = DEFAULT.block_app_name
+
+    def get_alert_duration(self, level: ConcernLevel):
+        if level == ConcernLevel.CRITICAL:
+            return self.alert_duration_critical
+        elif level == ConcernLevel.WARNING:
+            return self.alert_duration_warning
+        else:
+            return self.alert_duration_default
+        
+    def get_min_interval_secs(self, level: ConcernLevel): 
+        if level == ConcernLevel.CRITICAL:
+            return self.alert_min_interval_secs_default
+        elif level == ConcernLevel.WARNING:
+            return self.alert_min_interval_secs_default
+        else:
+            return self.alert_min_interval_secs_default

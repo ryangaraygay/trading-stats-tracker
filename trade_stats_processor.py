@@ -4,7 +4,7 @@ import glob
 import datetime
 import my_utils
 
-from color import Color
+from concern_level import ConcernLevel
 from trade import Trade
 from collections import defaultdict
 from streak import Streak
@@ -206,61 +206,67 @@ class TradeStatsProcessor:
 
                 # alert conditions, color change only if msg is empty
                 trade_conditions = [
-                    {"expr": lambda x: x > 20, "color": Color.CRITICAL, "msg": "Stop. Overtrading.", "extra_msg": f"{completed_trades} trades"},
-                    {"expr": lambda x: x > 10, "color": Color.WARNING, "msg": "Slow down. Too many trades.", "extra_msg": f"{completed_trades}"}
+                    {"expr": lambda x: x >= 20 and total_profit_or_loss > 0, "level": ConcernLevel.OK, "msg": "Wind down. You've reached your trade count goal.", "extra_msg": f"{completed_trades}"},
+                    {"expr": lambda x: x >= 20, "level": ConcernLevel.WARNING, "msg": "Wind down. You've reached your trade count goal.", "extra_msg": f"{completed_trades}"},
+                    {"expr": lambda x: x >= 10, "level": ConcernLevel.CAUTION, "msg": "Slow down. Take quality trades only.", "extra_msg": f"{completed_trades}"}
                 ]
 
                 pnl_conditions = [
-                    {"expr": lambda x: x < -2000, "color": Color.CRITICAL, "msg": "Stop. Too much Loss.", "extra_msg": f'{int(total_profit_or_loss):+,}'},
-                    {"expr": lambda x: x < -1000, "color": Color.WARNING, "msg": "Slow down. Losing.", "extra_msg": f'{int(total_profit_or_loss):+,}'},
-                    {"expr": lambda x: x >= 1000, "color": Color.OK, "msg": "Wind down. Protect gains.", "extra_msg": f'{int(total_profit_or_loss):+,}'}
+                    {"expr": lambda x: x < -2100, "level": ConcernLevel.CRITICAL, "msg": "Stop. Protect your capital.", "extra_msg": f'{int(total_profit_or_loss):+,}'},
+                    {"expr": lambda x: x < -1400, "level": ConcernLevel.WARNING, "msg": "Pause. Reset and recover losses.", "extra_msg": f'{int(total_profit_or_loss):+,}'},
+                    {"expr": lambda x: x < -700, "level": ConcernLevel.CAUTION, "msg": "Slow down. Manage loss by managing risk.", "extra_msg": f'{int(total_profit_or_loss):+,}'},
+                    {"expr": lambda x: x >= 1000, "level": ConcernLevel.OK, "msg": "Wind down. Protect gains.", "extra_msg": f'{int(total_profit_or_loss):+,}'}
                 ]
 
                 winrate_conditions = [
-                    {"expr": lambda x: x < 20, "color": Color.CRITICAL, "msg": "Stop. Win Rate very low.", "extra_msg": f"{directional_bias_extramsg}"},
-                    {"expr": lambda x: x < 40, "color": Color.WARNING, "msg": "Slow down. Win Rate low.", "extra_msg": f"{directional_bias_extramsg}"},
+                    {"expr": lambda x: x <= 25 and profit_factor < 1.0 and completed_trades >= 10, "level": ConcernLevel.WARNING, "msg": "Stop. Win Rate very low.", "extra_msg": f"{directional_bias_extramsg}"},
+                    {"expr": lambda x: x <= 40 and profit_factor < 1.5 and completed_trades >= 5, "level": ConcernLevel.CAUTION, "msg": "Slow down. Win Rate low.", "extra_msg": f"{directional_bias_extramsg}"},
                 ]
 
                 profitfactor_conditions = [
-                    {"expr": lambda x: x < 0.5, "color": Color.CRITICAL, "msg": "Stop. Profit Factor very low.", "extra_msg": f"{directional_bias_extramsg}"},
-                    {"expr": lambda x: x > 1.5, "color": Color.OK, "msg": ""},
+                    {"expr": lambda x: x < 1.0 and completed_trades >= 10, "level": ConcernLevel.WARNING, "msg": "Stop. Profit Factor very low.", "extra_msg": f"{directional_bias_extramsg}"},
+                    {"expr": lambda x: x < 1.5 and completed_trades >= 5, "level": ConcernLevel.CAUTION, "msg": "Slow down. Profit Factor low.", "extra_msg": f"{directional_bias_extramsg}"},
+                    {"expr": lambda x: x >= 1.5, "level": ConcernLevel.OK, "msg": ""},
                 ]
 
                 losingstreak_conditions = [
-                    {"expr": lambda x: x <= -4, "color": Color.CRITICAL, "msg": f"Stop. Extended losing streak. {streak_tracker.get_loss_mix()} in {streak_tracker.get_loss_elapsed_time_mins_str()}"},
-                    {"expr": lambda x: x <= -2, "color": Color.WARNING, "msg": f"Slow down. Consecutive losses. {streak_tracker.get_loss_mix()} in {streak_tracker.get_loss_elapsed_time_mins_str()}"},
+                    {"expr": lambda x: x <= -7, "level": ConcernLevel.CRITICAL, "msg": f"Stop Now. Protect the version of you that will trade well tomorrow."},
+                    {"expr": lambda x: x <= -5, "level": ConcernLevel.WARNING, "msg": f"Stop. Follow Reset plan."},
+                    {"expr": lambda x: x <= -3, "level": ConcernLevel.CAUTION, "msg": f"Slow down. Consecutive losses. {streak_tracker.get_extra_msg()}"},
                 ]
 
                 loss_max_size_conditions = [
-                    {"expr": lambda x: x >= 10, "color": Color.CRITICAL, "msg": "Stop. Size down."},
-                    {"expr": lambda x: x >= 6, "color": Color.WARNING, "msg": "Size down."},
+                    {"expr": lambda x: x >= 10, "level": ConcernLevel.WARNING, "msg": "Stop. Size down."},
+                    {"expr": lambda x: x >= 6, "level": ConcernLevel.CAUTION, "msg": "Size down."},
+                    {"expr": lambda x: x >= 4 and profit_factor < 1.0 and completed_trades >= 3, "level": ConcernLevel.CAUTION, "msg": "Size down."},
                 ]
                 
                 loss_scaled_count_conditions = [
-                    {"expr": lambda x: x >= 5, "color": Color.CRITICAL, "msg": "Stop. Scale up winners only."},
-                    {"expr": lambda x: x >= 3, "color": Color.WARNING, "msg": "Scale up winners only."},
+                    {"expr": lambda x: x >= 5, "level": ConcernLevel.WARNING, "msg": "Stop. Scale up winners only."},
+                    {"expr": lambda x: x >= 3, "level": ConcernLevel.CAUTION, "msg": "Scale up winners only."},
                 ]
 
                 drawdown_conditions = [
-                    {"expr": lambda x: x < -3000, "color": Color.CRITICAL, "msg": "Stop. Large drawdown.", "extra_msg": f'{current_drawdown:+,}'},
-                    {"expr": lambda x: x < -1000, "color": Color.WARNING, "msg": "Slow down. Notable drawdown.", "extra_msg": f'{current_drawdown:+,}'},
+                    {"expr": lambda x: x < -3000, "level": ConcernLevel.CRITICAL, "msg": "Stop. Significant Drawdown.", "extra_msg": f'{current_drawdown:+,}'},
+                    {"expr": lambda x: x < -2000, "level": ConcernLevel.WARNING, "msg": "Pause. Large drawdown.", "extra_msg": f'{current_drawdown:+,}'},
+                    {"expr": lambda x: x < -1000, "level": ConcernLevel.CAUTION, "msg": "Slow down. Notable drawdown.", "extra_msg": f'{current_drawdown:+,}'},
                 ]
 
-                winrate_color, winrate_msg, winrate_critical, winrate_extramsg = self.evaluate_conditions(win_rate, winrate_conditions)
-                overtrade_color, overtrade_msg, overtrade_critical, overtrade_extramsg = self.evaluate_conditions(completed_trades, trade_conditions)
-                pnl_color, pnl_msg, pnl_critical, pnl_extramsg = self.evaluate_conditions(total_profit_or_loss, pnl_conditions)
-                profitfactor_color, profitfactor_msg, profitfactor_critical, profitfactor_extramsg = self.evaluate_conditions(profit_factor, profitfactor_conditions)
-                losing_streak_color, losing_streak_msg, losingstreak_critical, extra_msg_placeholder = self.evaluate_conditions(streak_tracker.streak, losingstreak_conditions)
-                loss_max_size_color, loss_max_size_msg, loss_max_size_critical, loss_max_size_extramsg = self.evaluate_conditions(loss_max_size, loss_max_size_conditions)
-                loss_scaled_count_color, loss_scaled_count_msg, loss_scaled_count_critical, extra_msg_placeholder = self.evaluate_conditions(loss_scaled_count, loss_scaled_count_conditions)
+                winrate_color, winrate_msg, winrate_level, winrate_extramsg = self.evaluate_conditions(win_rate, winrate_conditions)
+                overtrade_color, overtrade_msg, overtrade_level, overtrade_extramsg = self.evaluate_conditions(completed_trades, trade_conditions)
+                pnl_color, pnl_msg, pnl_level, pnl_extramsg = self.evaluate_conditions(total_profit_or_loss, pnl_conditions)
+                profitfactor_color, profitfactor_msg, profitfactor_level, profitfactor_extramsg = self.evaluate_conditions(profit_factor, profitfactor_conditions)
+                losing_streak_color, losing_streak_msg, losingstreak_level, _ = self.evaluate_conditions(streak_tracker.streak, losingstreak_conditions)
+                loss_max_size_color, loss_max_size_msg, loss_max_size_level, loss_max_size_extramsg = self.evaluate_conditions(loss_max_size, loss_max_size_conditions)
+                loss_scaled_count_color, loss_scaled_count_msg, loss_scaled_count_level, _ = self.evaluate_conditions(loss_scaled_count, loss_scaled_count_conditions)
                 drawdown_color, drawdown_msg, drawdown_critical, drawdown_extramsg = self.evaluate_conditions(current_drawdown, drawdown_conditions)
                 
                 # color change only (can be converted to above approach too with resulting empty msg but only if there's benefit)  
-                open_size_color = Color.CAUTION if abs(position_size) > 3 else Color.DEFAULT
-                avg_duration_color = Color.WARNING if win_avg_secs < loss_avg_secs else Color.DEFAULT
-                max_duration_color = Color.WARNING if win_max_secs < loss_max_secs else Color.DEFAULT
-                intertrade_time_avg_color = Color.WARNING if time_between_trades_avg_secs < timedelta(seconds=60) else Color.DEFAULT
-                win_scaled_count_color = Color.OK if win_scaled_count >= 2 else Color.DEFAULT
+                open_size_color = (ConcernLevel.CAUTION if abs(position_size) > 3 else ConcernLevel.DEFAULT).get_color()
+                avg_duration_color = (ConcernLevel.WARNING if win_avg_secs < loss_avg_secs else ConcernLevel.DEFAULT).get_color()
+                max_duration_color = (ConcernLevel.WARNING if win_max_secs < loss_max_secs else ConcernLevel.DEFAULT).get_color()
+                intertrade_time_avg_color = (ConcernLevel.WARNING if time_between_trades_avg_secs < timedelta(seconds=60) else ConcernLevel.DEFAULT).get_color()
+                win_scaled_count_color = (ConcernLevel.OK if win_scaled_count >= 2 else ConcernLevel.DEFAULT).get_color()
 
                 open_entry_time_i = entry_time.strftime(CONST.DAY_TIME_FORMAT) if position_size != 0 else ''
                 open_entry_duration = my_utils.calculate_mins(open_entry_time_i, datetime.now())
@@ -314,40 +320,31 @@ class TradeStatsProcessor:
 
                 alert_extramsg_default = ""
                 alerts_data = [
-                    (overtrade_msg, False, overtrade_critical, overtrade_extramsg),
-                    (pnl_msg, False, pnl_critical, pnl_extramsg),
-                    (winrate_msg if completed_trades > 3 else "", False, winrate_critical, winrate_extramsg),
-                    (profitfactor_msg if completed_trades > 3 else "", False, profitfactor_critical, profitfactor_extramsg),
-                    (losing_streak_msg, False, losingstreak_critical, alert_extramsg_default),
-                    (loss_max_size_msg, False, loss_max_size_critical, loss_max_size_extramsg),
-                    (loss_scaled_count_msg, False, loss_scaled_count_critical, alert_extramsg_default),
-                    (drawdown_msg, False, drawdown_critical, drawdown_extramsg),
+                    (losing_streak_msg, losingstreak_level, alert_extramsg_default),
+                    (drawdown_msg, drawdown_critical, drawdown_extramsg),
+                    (pnl_msg, pnl_level, pnl_extramsg),
+                    (overtrade_msg, overtrade_level, overtrade_extramsg),
+                    (winrate_msg, winrate_level, winrate_extramsg),
+                    (profitfactor_msg, profitfactor_level, profitfactor_extramsg),
+                    (loss_max_size_msg, loss_max_size_level, loss_max_size_extramsg),
+                    (loss_scaled_count_msg, loss_scaled_count_level, alert_extramsg_default),
                 ]
 
-                critical_alerts = []
-                non_critical_alerts = []
+                trading_alerts = []
 
-                # TODO lambda sort based on critical when adding trading_alerts to simplify
-                for msg, show_once, critical, extra_msg in alerts_data:
+                for msg, level, extra_msg in alerts_data:
                     if msg:
                         alert = AlertMessage(
                             msg, 
                             account_name, 
-                            self.config.alert_duration_critical if critical else self.config.alert_duration_default, 
-                            show_once, 
-                            self.config.alert_min_interval_secs_default, 
-                            critical, 
-                            extra_msg)
-                        if critical:
-                            critical_alerts.append(alert)
-                        else:
-                            non_critical_alerts.append(alert)
-
-                trading_alerts = []
-                trading_alerts.extend(critical_alerts)
-                trading_alerts.extend(non_critical_alerts)
-
-                self.account_trading_alerts[account_name] = trading_alerts
+                            self.config.get_alert_duration(level),
+                            self.config.get_min_interval_secs(level),
+                            level,
+                            extra_msg
+                            )
+                        trading_alerts.append(alert)
+                        
+                self.account_trading_alerts[account_name] = sorted(trading_alerts, key=lambda record: record.level, reverse=True)
         else:
             self.account_trading_stats.clear()
             self.account_trading_alerts.clear()
@@ -362,12 +359,11 @@ class TradeStatsProcessor:
 
         self.account_trading_stats[CONST.SELECT_ACCOUNT] = trading_stats
 
+        # print(self.account_trading_stats)
+
     def evaluate_conditions(self, value, conditions):
         for cond in conditions:
             if isinstance(cond, dict):
                 if cond["expr"](value):
-                    return cond["color"], cond["msg"], cond["color"] == Color.CRITICAL, cond.get("extra_msg", "")
-            elif isinstance(cond, tuple) and len(cond) == 3:
-                if cond[0](value):
-                    return cond[1], cond[2], cond[1] == Color.CRITICAL, ""
-        return Color.DEFAULT, "", False, ""
+                    return cond["level"].get_color(), cond["msg"], cond["level"], cond.get("extra_msg", "")
+        return ConcernLevel.DEFAULT.get_color(), "", ConcernLevel.DEFAULT, ""

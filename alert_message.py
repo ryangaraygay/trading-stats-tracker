@@ -1,3 +1,3 @@
 from collections import namedtuple
 
-AlertMessage = namedtuple("AlertMessage", ["message", "account", "duration_secs", "display_once", "min_interval_secs", "critical", "extra_msg"])
+AlertMessage = namedtuple("AlertMessage", ["message", "account", "duration_secs", "min_interval_secs", "level", "extra_msg"])

@@ -6,6 +6,7 @@ import urllib.parse
 import os
 
 from urllib.parse import quote
+from concern_level import ConcernLevel
 
 class HammerspoonAlertManager:
     """
@@ -62,7 +63,7 @@ class HammerspoonAlertManager:
         except subprocess.CalledProcessError as e:
             print(f"Error executing Hammerspoon Lua: {e}")
 
-    def display_alert(self, message: str, account: str, duration_secs: float = 2.0, display_once: bool = False, min_interval_secs: int = 0, is_critical: bool = False, extra_msg: str = ""):
+    def display_alert(self, message: str, account: str, duration_secs: float = 2.0, min_interval_secs: int = 0, concern_level: ConcernLevel = ConcernLevel.DEFAULT, extra_msg: str = ""):
         """
         Displays a Hammerspoon alert with account-specific display limits.
 
@@ -70,12 +71,13 @@ class HammerspoonAlertManager:
             message: The message to display.
             account: The account associated with the message.
             duration_secs: The duration of the alert in seconds.
-            display_once: If True, the message will only be displayed once per account.
             min_interval_secs: Minimum interval in seconds between displaying the same message per account.
+            concern_level: The level of concern associated with the message (default: ConcernLevel.DEFAULT).
+            extra_msg: An extra message to display but will not have an effect on interval between displaying same message per account.
         """
-        threading.Thread(target=self._display_alert_thread, args=(message, account, duration_secs, display_once, min_interval_secs, is_critical, extra_msg)).start()
+        threading.Thread(target=self._display_alert_thread, args=(message, account, duration_secs, min_interval_secs, concern_level, extra_msg)).start()
 
-    def _display_alert_thread(self, message: str, account: str, duration_secs: float, display_once: bool, min_interval_secs: int, is_critical: bool, extra_msg: str):
+    def _display_alert_thread(self, message: str, account: str, duration_secs: float, min_interval_secs: int, concern_level: ConcernLevel, extra_msg: str):
         with self._lock:
             now = datetime.datetime.now()
 
@@ -85,13 +87,8 @@ class HammerspoonAlertManager:
             if message not in self._account_message_data[account]:
                 self._account_message_data[account][message] = {
                     "last_display_time": None,
-                    "displayed": False,
                 }
             message_info = self._account_message_data[account][message]
-
-            # Check display_once limit
-            if display_once and message_info["displayed"]:
-                return
 
             # Check min_interval limit
             if message_info["last_display_time"] and min_interval_secs > 0:
@@ -101,7 +98,7 @@ class HammerspoonAlertManager:
 
             # Display the alert via hammerspoon_bridge
             # alert_customization = "{ }"
-            fill_color = "{ red = 255, green = 0, blue = 0, alpha = 0.7 }" if is_critical else "{ red = 0, green = 255, blue = 255, alpha = 0.7 }"
+            fill_color = self.get_fill_color(concern_level)
             alert_customization = "{ fillColor = " + fill_color + ", textColor = { white=0.1, alpha=1 }, radius = 20, textSize = 40, padding = 30}"
 
             lua_code = f'hs.alert.show("{message} {extra_msg}", {alert_customization}, hs.screen.primaryScreen(), {duration_secs})'
@@ -109,19 +106,20 @@ class HammerspoonAlertManager:
 
             # Update message data
             message_info["last_display_time"] = now
-            if display_once:
-                message_info["displayed"] = True
+
+    def get_fill_color(self, level: ConcernLevel):
+        if level == ConcernLevel.CRITICAL:
+            return "{ red = 1, green = 0, blue = 0, alpha = 0.7 }" # red
+        elif level == ConcernLevel.WARNING:
+            return "{ red = 1, green = 0.65, blue = 0, alpha = 0.7 }" # orange
+        elif level == ConcernLevel.OK:
+            return "{ red = 0.56, green = 0.93, blue = 0.56, alpha = 0.7 }" # soft green
+        else:
+            return "{ red = 0.67, green = 0.85, blue = 0.90, alpha = 0.7 }" # soft blue
 
 # # Example usage (app.py)
 # if __name__ == "__main__":
 #     alert_manager = HammerspoonAlertManager()
-
-#     # Display a message only once for Account1
-#     alert_manager.display_alert("Unique Message", "Account1", display_once=True)
-#     alert_manager.display_alert("Unique Message", "Account1", display_once=True) # Will not display again for Account1
-
-#     # Display the same message for Account2 (should display)
-#     alert_manager.display_alert("Unique Message", "Account2", display_once=True)
 
 #     # Display a message with a minimum interval for Account1
 #     alert_manager.display_alert("Interval Message", "Account1", min_interval_secs=10)

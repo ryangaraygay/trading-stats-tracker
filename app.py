@@ -3,7 +3,7 @@ import datetime
 import my_utils
 
 from config import Config
-from color import Color
+from concern_level import ConcernLevel
 from metrics_names import MetricNames
 from trade_stats_processor import TradeStatsProcessor
 from hammerspoon_alert_manager import HammerspoonAlertManager
@@ -139,7 +139,7 @@ class TradingStatsApp(QApplication):
                         layout.addWidget(key_label, row_index, 0)
 
                         value_label = QLabel(str(value_color[0]))
-                        color = value_color[1] if len(value_color) > 1 else Color.DEFAULT
+                        color = value_color[1] if len(value_color) > 1 else ConcernLevel.DEFAULT.get_color()
                         value_label.setStyleSheet(f"border: 1px solid black; color: {color};")
                         font = QFont(font_name)
                         font.setPointSize(27)
@@ -153,20 +153,20 @@ class TradingStatsApp(QApplication):
 
             self.update_minutes()
             
-            contains_critical_alerts = False
+            concernLevel = ConcernLevel.DEFAULT
             if selected_key in self.processor.account_trading_alerts:
                 selected_alerts = self.processor.account_trading_alerts[selected_key]
                 for alert in selected_alerts:
                     if config.alert_enabled:
-                        self.alert_manager.display_alert(alert.message, alert.account, alert.duration_secs, alert.display_once, alert.min_interval_secs, alert.critical, alert.extra_msg)
-                    contains_critical_alerts |= alert.critical
+                        self.alert_manager.display_alert(alert.message, alert.account, alert.duration_secs, alert.min_interval_secs, alert.level, alert.extra_msg)
+                    concernLevel = max(concernLevel, alert.level)
             
             if (config.block_app_on_critical_alerts):
-                if contains_critical_alerts:
+                if concernLevel > ConcernLevel.CAUTION:
                     self.alert_manager.trigger_event(
                         "block-app", 
-                        {"app_name": config.block_app_name, "duration": config.alert_duration_critical}, # sync duration of both block and alert 
-                        config.alert_min_interval_secs_default) # sync quiet period of both block and alert 
+                        {"app_name": config.block_app_name, "duration": config.get_alert_duration(concernLevel)}, # sync duration of both block and alert 
+                        config.get_min_interval_secs(concernLevel)) # sync quiet period of both block and alert
 
         self.dropdown.currentTextChanged.connect(dropdown_changed)
         self.dropdown.setCurrentText(CONST.SELECT_ACCOUNT)
@@ -231,7 +231,7 @@ class TradingStatsApp(QApplication):
             if minutes >= caution_minutes: 
                 self.open_duration_label.setStyleSheet(f"border: 1px solid black; color: yellow;")
                 if config.alert_enabled:
-                    self.alert_manager.display_alert(f"Trade open for > 10 mins", self.dropdown.currentText(), 5, False, 600, False)
+                    self.alert_manager.display_alert(f"Trade open for > 10 mins", self.dropdown.currentText(), 5, 600, ConcernLevel.CAUTION, "")
 
 if __name__ == "__main__":
     config = Config()
@@ -239,8 +239,12 @@ if __name__ == "__main__":
     sys.exit(app.exec())
 
 # TODO
+#   Config.min_interval_secs should also configurable per level
+#       even better they should not be retriggered if the condition has improved (or has not gotten worse)
 ## more features
 #   handle the ALL stats case (multi-account view)
+#       add ALL Accounts in account list
+#       compute stats based on all fills
 
 ## improvements
 #   clarify config/defaults if secs, ms, mins (be as consistent as possible)
