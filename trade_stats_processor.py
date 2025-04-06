@@ -214,42 +214,42 @@ class TradeStatsProcessor:
 
                 pnl_conditions = [
                     {"expr": lambda x: x < -2100, "level": ConcernLevel.CRITICAL, "msg": "Stop. Protect your capital.", "extra_msg": f'{int(total_profit_or_loss):+,}'},
-                    {"expr": lambda x: x < -1400, "level": ConcernLevel.WARNING, "msg": "Pause. Reset and recover losses.", "extra_msg": f'{int(total_profit_or_loss):+,}'},
+                    {"expr": lambda x: x < -1400, "level": ConcernLevel.WARNING, "msg": "Pause. Reset first, then recover.", "extra_msg": f'{int(total_profit_or_loss):+,}'},
                     {"expr": lambda x: x < -700, "level": ConcernLevel.CAUTION, "msg": "Slow down. Manage loss by managing risk.", "extra_msg": f'{int(total_profit_or_loss):+,}'},
                     {"expr": lambda x: x >= 1000, "level": ConcernLevel.OK, "msg": "Wind down. Protect gains.", "extra_msg": f'{int(total_profit_or_loss):+,}'}
                 ]
 
                 winrate_conditions = [
-                    {"expr": lambda x: x <= 25 and profit_factor < 1.0 and completed_trades >= 10, "level": ConcernLevel.WARNING, "msg": "Stop. Win Rate very low.", "extra_msg": f"{directional_bias_extramsg}"},
+                    {"expr": lambda x: x <= 25 and profit_factor < 1.0 and completed_trades >= 10, "level": ConcernLevel.WARNING, "msg": "Reset. Win Rate very low.", "extra_msg": f"{directional_bias_extramsg}"},
                     {"expr": lambda x: x <= 40 and profit_factor < 1.5 and completed_trades >= 5, "level": ConcernLevel.CAUTION, "msg": "Slow down. Win Rate low.", "extra_msg": f"{directional_bias_extramsg}"},
                 ]
 
                 profitfactor_conditions = [
-                    {"expr": lambda x: x < 1.0 and completed_trades >= 10, "level": ConcernLevel.WARNING, "msg": "Stop. Profit Factor very low.", "extra_msg": f"{directional_bias_extramsg}"},
+                    {"expr": lambda x: x < 1.0 and completed_trades >= 10, "level": ConcernLevel.WARNING, "msg": "Reset. Profit Factor very low.", "extra_msg": f"{directional_bias_extramsg}"},
                     {"expr": lambda x: x < 1.5 and completed_trades >= 5, "level": ConcernLevel.CAUTION, "msg": "Slow down. Profit Factor low.", "extra_msg": f"{directional_bias_extramsg}"},
                     {"expr": lambda x: x >= 1.5, "level": ConcernLevel.OK, "msg": ""},
                 ]
 
                 losingstreak_conditions = [
-                    {"expr": lambda x: x <= -7, "level": ConcernLevel.CRITICAL, "msg": f"Stop Now. Protect the version of you that will trade well tomorrow."},
+                    {"expr": lambda x: x <= -7, "level": ConcernLevel.CRITICAL, "msg": f"Stop Now. Protect the version of YOU that will trade well tomorrow."},
                     {"expr": lambda x: x <= -5, "level": ConcernLevel.WARNING, "msg": f"Stop. Follow Reset plan."},
                     {"expr": lambda x: x <= -3, "level": ConcernLevel.CAUTION, "msg": f"Slow down. Consecutive losses. {streak_tracker.get_extra_msg()}"},
                 ]
 
                 loss_max_size_conditions = [
-                    {"expr": lambda x: x >= 10, "level": ConcernLevel.WARNING, "msg": "Stop. Size down."},
+                    {"expr": lambda x: x >= 10, "level": ConcernLevel.WARNING, "msg": "Reset. Size down."},
                     {"expr": lambda x: x >= 6, "level": ConcernLevel.CAUTION, "msg": "Size down."},
                     {"expr": lambda x: x >= 4 and profit_factor < 1.0 and completed_trades >= 3, "level": ConcernLevel.CAUTION, "msg": "Size down."},
                 ]
                 
                 loss_scaled_count_conditions = [
-                    {"expr": lambda x: x >= 5, "level": ConcernLevel.WARNING, "msg": "Stop. Scale up winners only."},
+                    {"expr": lambda x: x >= 5, "level": ConcernLevel.WARNING, "msg": "Reset. Scale up winners only."},
                     {"expr": lambda x: x >= 3, "level": ConcernLevel.CAUTION, "msg": "Scale up winners only."},
                 ]
 
                 drawdown_conditions = [
-                    {"expr": lambda x: x < -3000, "level": ConcernLevel.CRITICAL, "msg": "Stop. Significant Drawdown.", "extra_msg": f'{current_drawdown:+,}'},
-                    {"expr": lambda x: x < -2000, "level": ConcernLevel.WARNING, "msg": "Pause. Large drawdown.", "extra_msg": f'{current_drawdown:+,}'},
+                    {"expr": lambda x: x < -3000, "level": ConcernLevel.CRITICAL, "msg": "Stop Now. Maximum drawdown.", "extra_msg": f'{current_drawdown:+,}'},
+                    {"expr": lambda x: x < -2000, "level": ConcernLevel.WARNING, "msg": "Reset. Large drawdown.", "extra_msg": f'{current_drawdown:+,}'},
                     {"expr": lambda x: x < -1000, "level": ConcernLevel.CAUTION, "msg": "Slow down. Notable drawdown.", "extra_msg": f'{current_drawdown:+,}'},
                 ]
 
