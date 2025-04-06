@@ -1,5 +1,6 @@
 
 class MetricNames:
+    TRADES = "Trades"
     OPEN_ENTRY = "Open Entry"
     OPEN_DURATION = "Open Duration"
     AVG_SIZE = "Avg Size"

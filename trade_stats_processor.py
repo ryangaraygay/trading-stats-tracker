@@ -206,6 +206,7 @@ class TradeStatsProcessor:
 
                 # alert conditions, color change only if msg is empty
                 trade_conditions = [
+                    {"expr": lambda x: x >= 30, "level": ConcernLevel.CRITICAL, "msg": "Stop. Maximum trades for the day reached.", "extra_msg": f"{completed_trades}"},
                     {"expr": lambda x: x >= 20 and total_profit_or_loss > 0, "level": ConcernLevel.OK, "msg": "Wind down. You've reached your trade count goal.", "extra_msg": f"{completed_trades}"},
                     {"expr": lambda x: x >= 20, "level": ConcernLevel.WARNING, "msg": "Wind down. You've reached your trade count goal.", "extra_msg": f"{completed_trades}"},
                     {"expr": lambda x: x >= 10, "level": ConcernLevel.CAUTION, "msg": "Slow down. Take quality trades only.", "extra_msg": f"{completed_trades}"}
@@ -275,7 +276,7 @@ class TradeStatsProcessor:
                 avg_orders_per_trade = 0 if completed_trades == 0 else (total_buys + total_sells) / (completed_trades * 2)
                 
                 trading_stats = [
-                    {"Trades": [f'{completed_trades}', f'{overtrade_color}']},
+                    {MetricNames.TRADES: [f'{completed_trades}', f'{overtrade_color}']},
                     {"Win Rate": [f'{win_rate:.0f}%', f'{winrate_color}']},
                     {"Profit Factor": [f'{profit_factor:.01f}', f'{profitfactor_color}']},
                     {"Bias": [f'{directional_bias}']},

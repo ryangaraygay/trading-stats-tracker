@@ -36,6 +36,7 @@ class TradingStatsApp(QApplication):
         self.duration_timer.timeout.connect(self.update_minutes)
         self.duration_timer.start(config.open_duration_refresh_ms)
 
+        self.account_tradecount_on_recent_alert = {}
         self.reload_all_data_from_source()
         self.create_stats_window()
 
@@ -153,20 +154,35 @@ class TradingStatsApp(QApplication):
 
             self.update_minutes()
             
-            concernLevel = ConcernLevel.DEFAULT
-            if selected_key in self.processor.account_trading_alerts:
-                selected_alerts = self.processor.account_trading_alerts[selected_key]
-                for alert in selected_alerts:
-                    if config.alert_enabled:
-                        self.alert_manager.display_alert(alert.message, alert.account, alert.duration_secs, alert.min_interval_secs, alert.level, alert.extra_msg)
-                    concernLevel = max(concernLevel, alert.level)
-            
-            if (config.block_app_on_critical_alerts):
-                if concernLevel > ConcernLevel.CAUTION:
-                    self.alert_manager.trigger_event(
-                        "block-app", 
-                        {"app_name": config.block_app_name, "duration": config.get_alert_duration(concernLevel)}, # sync duration of both block and alert 
-                        config.get_min_interval_secs(concernLevel)) # sync quiet period of both block and alert
+            # handle alerts and blocks
+            account_name = selected_key
+            if account_name in self.processor.account_trading_alerts:
+                selected_alerts = self.processor.account_trading_alerts[account_name]
+                if len(selected_alerts) > 0:
+                    # check first if there have been new trades since last alert
+                    new_tradecount = 0
+                    for item in selected_stats:
+                        if MetricNames.TRADES in item:
+                            new_tradecount = int(item[MetricNames.TRADES][0])
+
+                    old_tradecount = 0
+                    if account_name in self.account_tradecount_on_recent_alert:
+                        old_tradecount = self.account_tradecount_on_recent_alert[account_name]                        
+
+                    if new_tradecount != old_tradecount:
+                        concernLevel = ConcernLevel.DEFAULT
+                        for alert in selected_alerts:
+                            if config.alert_enabled:
+                                self.alert_manager.display_alert(alert.message, alert.account, alert.duration_secs, alert.min_interval_secs, alert.level, alert.extra_msg)
+                            concernLevel = max(concernLevel, alert.level)
+
+                        if (config.block_app_on_critical_alerts):
+                            if concernLevel > ConcernLevel.CAUTION:
+                                self.alert_manager.trigger_event(
+                                    "block-app", 
+                                    {"app_name": config.block_app_name, "duration": config.get_alert_duration(concernLevel)}, # sync duration of both block and alert 
+                                    config.get_min_interval_secs(concernLevel)) # sync quiet period of both block and alert
+                        self.account_tradecount_on_recent_alert[account_name] = new_tradecount
 
         self.dropdown.currentTextChanged.connect(dropdown_changed)
         self.dropdown.setCurrentText(CONST.SELECT_ACCOUNT)
@@ -239,9 +255,6 @@ if __name__ == "__main__":
     sys.exit(app.exec())
 
 # TODO
-#   alerts/blocks should not be retriggered unless 
-#       min_interval_secs has lapsed (already in place)
-#       or completed trade count has increased
 ## more features
 #   handle the ALL stats case (multi-account view)
 #       add ALL Accounts in account list
