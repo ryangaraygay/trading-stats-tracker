@@ -368,3 +368,11 @@ class TradeStatsProcessor:
                 if cond["expr"](value):
                     return cond["level"].get_color(), cond["msg"], cond["level"], cond.get("extra_msg", "")
         return ConcernLevel.DEFAULT.get_color(), "", ConcernLevel.DEFAULT, ""
+    
+    def get_total_trades_across_all(self):
+        total_trade_count = 0
+        for _, stats in self.account_trading_stats.items():
+            for item in stats:
+                if MetricNames.TRADES in item:
+                    total_trade_count += int(item[MetricNames.TRADES][0])
+        return total_trade_count

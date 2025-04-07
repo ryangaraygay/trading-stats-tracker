@@ -50,8 +50,21 @@ class LogFileSelector(QDialog):
 
         self.populate_list()
 
+        button_style = """
+            QPushButton {
+                background-color: gray;
+                color: black;
+                border-radius: 5px;
+                font-size: 16pt;
+                padding: 5px 10px;
+            }
+            QPushButton:hover {
+                background-color: lightgray;
+            }
+        """
+
         self.select_button = QPushButton("Select Files")
-        self.select_button.setFont(QFont("Arial", 27))
+        self.select_button.setStyleSheet(button_style)
         self.select_button.clicked.connect(self.select_files)
         layout.addWidget(self.select_button)
 

@@ -63,6 +63,10 @@ class TradingStatsApp(QApplication):
         MetricNames.LAST_UPDATED,
     ] # Define keys to exclude if extra metrics is unchecked.
 
+    def call_last_trade(self):
+        self.last_trade_count = self.processor.get_total_trades_across_all()
+        self.alert_manager.display_alert("You have called for a Last Trade. Winding down.", "ALL_ACCOUNTS", 5, 5, ConcernLevel.DEFAULT, "")
+
     def create_stats_window(self):
         self.window.setWindowTitle("Trading Statistics")
         self.window.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
@@ -94,6 +98,7 @@ class TradingStatsApp(QApplication):
         close_button = QPushButton("Close")
         select_logfile_button = QPushButton("Select Log File(s)")
         refresh_all_button = QPushButton("Refresh All")
+        call_last_trade_button = QPushButton("Call For Last Trade")
 
         def refresh_data():
             selected_key = self.dropdown.currentText()
@@ -114,7 +119,16 @@ class TradingStatsApp(QApplication):
         def dropdown_changed(selected_key):
             for i in reversed(range(layout.count())):
                 item = layout.itemAt(i)
-                if item and item.widget() and item.widget() not in (self.dropdown, dummy_label, extra_metrics_checkbox, refresh_button, refresh_all_button, pause_button, close_button, select_logfile_button):
+                if item and item.widget() and item.widget() not in (
+                        self.dropdown, 
+                        dummy_label, 
+                        extra_metrics_checkbox, 
+                        refresh_button, 
+                        refresh_all_button, 
+                        pause_button, 
+                        close_button, 
+                        select_logfile_button,
+                        call_last_trade_button):
                     item.widget().deleteLater()
                     layout.removeItem(item)
 
@@ -155,6 +169,24 @@ class TradingStatsApp(QApplication):
             self.update_minutes()
             
             # handle alerts and blocks
+            if hasattr(self, 'last_trade_count'):
+                new_total_tradecount = self.processor.get_total_trades_across_all()
+                if (new_total_tradecount > self.last_trade_count):
+                    last_trade_alert_duration_secs = 300
+                    last_trade_alert_min_interval_secs = 300
+                    self.alert_manager.display_alert(
+                        "You have completed your Last Trade. Well done.", 
+                        "ALL_ACCOUNTS", 
+                        last_trade_alert_duration_secs, 
+                        last_trade_alert_min_interval_secs, 
+                        ConcernLevel.OK, 
+                        "")
+                    self.alert_manager.trigger_event(
+                        "block-app", 
+                        {"app_name": config.block_app_name, "duration": last_trade_alert_duration_secs},
+                        last_trade_alert_min_interval_secs)
+                    return 
+
             account_name = selected_key
             if account_name in self.processor.account_trading_alerts:
                 selected_alerts = self.processor.account_trading_alerts[account_name]
@@ -224,14 +256,34 @@ class TradingStatsApp(QApplication):
                     refresh_all()
                     
         select_logfile_button.clicked.connect(select_log_files)
-        
+        call_last_trade_button.clicked.connect(self.call_last_trade)
+
+        button_style = """
+            QPushButton {
+                background-color: gray;
+                color: black;
+                border-radius: 5px;
+                font-size: 16pt;
+                padding: 5px 10px;
+            }
+            QPushButton:hover {
+                background-color: lightgray;
+            }
+        """
+        call_last_trade_button.setStyleSheet(button_style)
+        select_logfile_button.setStyleSheet(button_style)
+        refresh_button.setStyleSheet(button_style)
+        refresh_all_button.setStyleSheet(button_style)
+        close_button.setStyleSheet(button_style)
+
         button_row_index_start = 38 # fixed so we don't have to window adjust when refreshing and some accounts have no fills (and therefore no stats)
         layout.addWidget(extra_metrics_checkbox, button_row_index_start, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(select_logfile_button, button_row_index_start + 1, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(refresh_button, button_row_index_start + 2, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(refresh_all_button, button_row_index_start + 3, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(close_button, button_row_index_start + 4, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
-        
+        layout.addWidget(call_last_trade_button, button_row_index_start + 1, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(select_logfile_button, button_row_index_start + 2, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(refresh_button, button_row_index_start + 3, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(refresh_all_button, button_row_index_start + 4, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(close_button, button_row_index_start + 5, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
+
         self.window.adjustSize()
         self.window.show()
 
@@ -264,3 +316,5 @@ if __name__ == "__main__":
 #   clarify config/defaults if secs, ms, mins (be as consistent as possible)
 #   calculate average through the loop instead of lambda
 #   limit to one instance running, alert if attempting to open more
+#   use ConfigParser (config.ini), then remove default.py
+#   support for multi contract symbol+value
