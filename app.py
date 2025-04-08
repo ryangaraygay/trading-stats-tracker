@@ -61,6 +61,7 @@ class TradingStatsApp(QApplication):
         MetricNames.SCALED_WINS,
         MetricNames.MAX_WIN_SZE,
         MetricNames.LAST_UPDATED,
+        MetricNames.GAINS_LOSSES,
     ] # Define keys to exclude if extra metrics is unchecked.
 
     def call_last_trade(self):
@@ -316,5 +317,7 @@ if __name__ == "__main__":
 #   clarify config/defaults if secs, ms, mins (be as consistent as possible)
 #   calculate average through the loop instead of lambda
 #   limit to one instance running, alert if attempting to open more
-#   use ConfigParser (config.ini), then remove default.py
+#   use ConfigParser (config.ini)
+#       make run use a local/test config
+#       remove default.py
 #   support for multi contract symbol+value

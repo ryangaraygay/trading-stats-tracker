@@ -1,6 +1,4 @@
 import re
-import os
-import glob
 import datetime
 import my_utils
 
@@ -81,6 +79,7 @@ class TradeStatsProcessor:
                 total_sell_contracts = 0
                 total_profit_or_loss = 0.0
                 total_wins = 0
+                total_wins_long = 0
                 gains = 0
                 losses = 0
                 max_realized_drawdown = 0
@@ -146,6 +145,7 @@ class TradeStatsProcessor:
                         total_profit_or_loss += completed_profit_loss
                         is_win = completed_profit_loss > 0
                         total_wins += is_win
+                        total_wins_long += 1 if (is_win and entry_is_long) else 0 
 
                         gains += completed_profit_loss if is_win else 0
                         losses += 0 if is_win else abs(completed_profit_loss)
@@ -155,9 +155,9 @@ class TradeStatsProcessor:
                         last_exit_time = max_time
                         duration = last_exit_time - entry_time
 
-                        trade_size = int(buy_qty) # can be sell_qty since completed trades have equal sell and buy qty
+                        trade_size = self.calculate_max_quantity(grouped_trades) #int(buy_qty)
                         entries_in_trade_count = len(grouped_trades["Filled BUY" if entry_is_long else "Filled SELL"])
-                        
+
                         if not is_win:
                             loss_max_size = max(loss_max_size, trade_size) 
                             loss_max_value = min(loss_max_value, completed_profit_loss)
@@ -179,6 +179,8 @@ class TradeStatsProcessor:
                         entry_time = datetime.max
 
                 win_rate = 50 if completed_trades == 0 else total_wins/completed_trades * 100
+                long_win_rate = 0 if total_long_trades == 0 else total_wins_long/total_long_trades * 100
+                short_win_rate = 0 if total_short_trades == 0 else (total_wins - total_wins_long)/total_short_trades * 100
                 profit_factor = 1 if losses == 0 else gains/losses
                 loss_avg_secs = my_utils.average_timedelta(loss_duration)
                 loss_max_secs = my_utils.max_timedelta(loss_duration)
@@ -278,7 +280,7 @@ class TradeStatsProcessor:
                 trading_stats = [
                     {MetricNames.TRADES: [f'{completed_trades}', f'{overtrade_color}']},
                     {"Win Rate": [f'{win_rate:.0f}%', f'{winrate_color}']},
-                    {"Profit Factor": [f'{profit_factor:.01f}', f'{profitfactor_color}']},
+                    {"Win Rate (L/S)": [f'{long_win_rate:.0f}% / {short_win_rate:.0f}%']},
                     {"Bias": [f'{directional_bias}']},
                     {"Scaled Losses": [f'{int(loss_scaled_count):,}', f'{loss_scaled_count_color}']},
                     {"Max Loss Size": [f'{int(loss_max_size)}', f'{loss_max_size_color}']},
@@ -290,6 +292,8 @@ class TradeStatsProcessor:
                     # {"Max Size": [f'{streak_tracker.get_max_size_of_current_streak_str()}']},
                     {"Best/Worst": [f'{streak_tracker.best_streak:+} / {streak_tracker.worst_streak:+}']},
                     {"": [f'']},
+                    {"Profit Factor": [f'{profit_factor:.01f}', f'{profitfactor_color}']},
+                    {MetricNames.GAINS_LOSSES: [f'{int(gains):+,} / {int(losses):+,}']},
                     {"Profit/Loss": [f'{int(total_profit_or_loss):+,}', f'{pnl_color}']},
                     {"Drawdown": [f'{int(current_drawdown):+,}', f'{drawdown_color}']},
                     {"Peak P/L": [f'{int(max_realized_profit):+,} / {int(max_realized_drawdown):+,}']},
@@ -376,3 +380,26 @@ class TradeStatsProcessor:
                 if MetricNames.TRADES in item:
                     total_trade_count += int(item[MetricNames.TRADES][0])
         return total_trade_count
+    
+
+    def calculate_max_quantity(self, trades_dict: defaultdict) -> float:
+        all_trades = []
+        for trade_list in trades_dict.values():
+            all_trades.extend(trade_list)
+
+        all_trades.sort(key=lambda trade: trade.order_id)
+
+        current_quantity = 0.0
+        max_quantity = 0.0
+
+        for trade in all_trades:
+            if trade.order_type == 'Filled BUY':
+                current_quantity += trade.quantity
+            elif trade.order_type == 'Filled SELL':
+                current_quantity -= trade.quantity
+            else:
+                continue
+
+            max_quantity = max(max_quantity, current_quantity)
+
+        return max_quantity

@@ -16,3 +16,4 @@ class MetricNames:
     SCALED_WINS = "Scaled Wins"
     MAX_WIN_SZE = "Max Win Size"
     LAST_UPDATED = "Last Updated"
+    GAINS_LOSSES = "Gains/Losses"
