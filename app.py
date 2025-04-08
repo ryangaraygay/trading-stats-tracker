@@ -47,7 +47,7 @@ class TradingStatsApp(QApplication):
         self.processor.load_account_names(filepaths)
         fill_data = self.processor.get_fills(filepaths, config.contract_symbol)
         self.existing_fill_count = len(fill_data)
-        self.processor.compute_trade_stats(fill_data, config.contract_value)
+        self.processor.compute_trade_stats(fill_data)
 
     extra_metrics_names = [
         MetricNames.AVG_SIZE,
@@ -106,7 +106,7 @@ class TradingStatsApp(QApplication):
             fill_data = self.processor.get_fills(self.dialog.get_selected_files(), config.contract_symbol)
             current_fill_count = len(fill_data)
             if current_fill_count != self.existing_fill_count:
-                self.processor.compute_trade_stats(fill_data, config.contract_value)
+                self.processor.compute_trade_stats(fill_data)
                 dropdown_changed(selected_key) #re-render with the updated data.
                 self.existing_fill_count = current_fill_count
             refresh_button.setText(f'Refresh Fills [{datetime.now().strftime(CONST.DATE_TIME_FORMAT)}]')

@@ -3,3 +3,4 @@ class CONST:
     DATE_TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
     LOG_FILENAME_PATTERN = r"output*"
     SELECT_ACCOUNT = "Select Account"
+    ALL_ACCOUNTS = "ALL Accounts"
