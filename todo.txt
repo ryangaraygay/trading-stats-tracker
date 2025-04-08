@@ -1,0 +1,11 @@
+# TODO
+## more features
+#   handle the ALL stats case (multi-account view)
+#       add ALL Accounts in account list
+#       compute stats based on all fills
+
+## improvements
+#   clarify config/defaults if secs, ms, mins (be as consistent as possible)
+#   calculate average through the loop instead of lambda
+#   limit to one instance running, alert if attempting to open more
+#   support for multi contract symbol+value

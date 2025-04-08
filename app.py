@@ -306,18 +306,3 @@ if __name__ == "__main__":
     config = Config()
     app = TradingStatsApp(config)
     sys.exit(app.exec())
-
-# TODO
-## more features
-#   handle the ALL stats case (multi-account view)
-#       add ALL Accounts in account list
-#       compute stats based on all fills
-
-## improvements
-#   clarify config/defaults if secs, ms, mins (be as consistent as possible)
-#   calculate average through the loop instead of lambda
-#   limit to one instance running, alert if attempting to open more
-#   use ConfigParser (config.ini)
-#       make run use a local/test config
-#       remove default.py
-#   support for multi contract symbol+value

@@ -6,9 +6,17 @@ hammerspoon is used on two key features
 1. alerts (uses hs.alert) - requires hs cli
 2. disabling MotiveWave on critical alerts (tilt conditions)
 
-you can disable alerts by setting in config.py `self.alert_enabled = False`
+you can disable alerts by setting in config.ini
+```
+[alert]
+enabled = False
+```
 
-you can disable blocking of MotiveWave by setting in config.py `self.block_app_on_critical_alerts = False`
+you can disable blocking of MotiveWave by setting in config.ini
+```
+[alert]
+block_app_on_critical_alerts = False
+```
 
 hammerspoon must be running for these to work
 

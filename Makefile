@@ -14,4 +14,7 @@ lint:
 run:
 	python app.py
 
+run_local:
+	CONFIG_ENV=local python app.py
+
 all: #install lint test
