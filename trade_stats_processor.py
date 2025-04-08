@@ -265,7 +265,7 @@ class TradeStatsProcessor:
                 drawdown_color, drawdown_msg, drawdown_critical, drawdown_extramsg = self.evaluate_conditions(current_drawdown, drawdown_conditions)
                 
                 # color change only (can be converted to above approach too with resulting empty msg but only if there's benefit)  
-                open_size_color = (ConcernLevel.CAUTION if abs(position_size) > 3 else ConcernLevel.DEFAULT).get_color()
+                open_size_color = (ConcernLevel.CAUTION if abs(position_size) >= 3 else ConcernLevel.DEFAULT).get_color()
                 avg_duration_color = (ConcernLevel.WARNING if win_avg_secs < loss_avg_secs else ConcernLevel.DEFAULT).get_color()
                 max_duration_color = (ConcernLevel.WARNING if win_max_secs < loss_max_secs else ConcernLevel.DEFAULT).get_color()
                 intertrade_time_avg_color = (ConcernLevel.WARNING if time_between_trades_avg_secs < timedelta(seconds=60) else ConcernLevel.DEFAULT).get_color()
@@ -293,7 +293,7 @@ class TradeStatsProcessor:
                     {"Best/Worst": [f'{streak_tracker.best_streak:+} / {streak_tracker.worst_streak:+}']},
                     {"": [f'']},
                     {"Profit Factor": [f'{profit_factor:.01f}', f'{profitfactor_color}']},
-                    {MetricNames.GAINS_LOSSES: [f'{int(gains):+,} / {int(losses):+,}']},
+                    {MetricNames.GAINS_LOSSES: [f'{int(gains):+,} / {int(losses * -1):+,}']},
                     {"Profit/Loss": [f'{int(total_profit_or_loss):+,}', f'{pnl_color}']},
                     {"Drawdown": [f'{int(current_drawdown):+,}', f'{drawdown_color}']},
                     {"Peak P/L": [f'{int(max_realized_profit):+,} / {int(max_realized_drawdown):+,}']},
