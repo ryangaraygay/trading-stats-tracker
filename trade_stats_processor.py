@@ -140,6 +140,9 @@ class TradeStatsProcessor:
         entry_time = datetime.max
         first_entry_time = datetime.max
 
+        max_realized_drawdown_time = datetime.max
+        max_realized_profit_time = datetime.max
+
         for fill in sorted_fill:
             if len(grouped_trades) == 0:
                 entry_is_long = "BUY" in fill.order_type
@@ -182,11 +185,15 @@ class TradeStatsProcessor:
                 total_winning_trades += is_win
                 total_wins_long += 1 if (is_win and entry_is_long) else 0 
 
-                max_realized_drawdown = min(total_profit_or_loss, max_realized_drawdown)
-                max_realized_profit = max(total_profit_or_loss, max_realized_profit)
                 last_exit_time = max_time
                 duration = last_exit_time - entry_time
-
+                if total_profit_or_loss < max_realized_drawdown:
+                    max_realized_drawdown = total_profit_or_loss
+                    max_realized_drawdown_time = last_exit_time
+                if total_profit_or_loss > max_realized_profit:
+                    max_realized_profit = total_profit_or_loss
+                    max_realized_profit_time = last_exit_time
+                
                 trade_size = self.calculate_max_quantity(grouped_trades)
                 trade_points = completed_profit_loss / (trade_size * self.config.contract_value)
                 entries_in_trade_count = len(grouped_trades["Filled BUY" if entry_is_long else "Filled SELL"])
@@ -330,6 +337,9 @@ class TradeStatsProcessor:
         open_entry_duration_str = "" if open_entry_duration == 0 else open_entry_duration
 
         avg_orders_per_trade = 0 if completed_trades == 0 else (total_buys + total_sells) / (completed_trades * 2)
+
+        peak_profit_time = max_realized_profit_time.strftime(CONST.DAY_TIME_FORMAT) if max_realized_profit_time != datetime.max else "N/A"
+        peak_drawdown_time = max_realized_drawdown_time.strftime(CONST.DAY_TIME_FORMAT) if max_realized_drawdown_time != datetime.max else "N/A"
         
         trading_stats = [
             {MetricNames.TRADES: [f'{completed_trades}', f'{overtrade_color}']},
@@ -350,6 +360,7 @@ class TradeStatsProcessor:
             {"Profit/Loss": [f'{int(total_profit_or_loss):+,}', f'{pnl_color}']},
             {"Drawdown": [f'{int(current_drawdown):+,}', f'{drawdown_color}']},
             {"Peak P/L": [f'{int(max_realized_profit):+,} / {int(max_realized_drawdown):+,}']},
+            {MetricNames.PEAK_TIME_PNL: [f'{peak_profit_time} | {peak_drawdown_time}']},
             {MetricNames.AVG_GAIN_LOSS: [f'{int(avg_gain):+,} / {int(avg_loss):+,}']},
             {"Max Trade P/L": [f'{int(win_max_value):+,} / {int(loss_max_value):+,}']},
             {MetricNames.AVG_POINTS: [f'{int(win_avg_points):+,} / {int(loss_avg_points):+,}']},
@@ -358,8 +369,8 @@ class TradeStatsProcessor:
             {"Open Size": [f'{int(position_size)}', f'{open_size_color}']},
             {MetricNames.OPEN_DURATION: [f'{open_entry_duration_str}']},
             {MetricNames.OPEN_ENTRY: [f'{open_entry_time_i}']},
-            {MetricNames.FIRST_ENTRY: [f'{first_entry_time.strftime("%m/%d %H:%M")}']},
-            {MetricNames.LAST_EXIT: [f'{last_exit_time.strftime("%m/%d %H:%M")}']},
+            {MetricNames.FIRST_ENTRY: [f'{first_entry_time.strftime(CONST.DAY_TIME_FORMAT)}']},
+            {MetricNames.LAST_EXIT: [f'{last_exit_time.strftime(CONST.DAY_TIME_FORMAT)}']},
             {"": [f'']},
             {MetricNames.INTERTRADE_AVG: [f'{my_utils.format_timedelta(time_between_trades_avg_secs)}', f'{intertrade_time_avg_color}']},
             {MetricNames.INTERTRADE_MAX: [f'{my_utils.format_timedelta(time_between_trades_max_secs)}']},
@@ -372,7 +383,7 @@ class TradeStatsProcessor:
             {MetricNames.CONTRACTS_LONG_SHORT: [f'{total_buy_contracts} / {total_sell_contracts}']},
             {MetricNames.SCALED_WINS: [f'{int(win_scaled_count):,}', f'{win_scaled_count_color}']},
             {MetricNames.MAX_WIN_SZE: [f'{int(win_max_size)}']},
-            {MetricNames.LAST_UPDATED: [f'{datetime.now().strftime("%m/%d %H:%M")}']},
+            {MetricNames.LAST_UPDATED: [f'{datetime.now().strftime(CONST.DAY_TIME_FORMAT)}']},
         ]
 
         alert_extramsg_default = ""

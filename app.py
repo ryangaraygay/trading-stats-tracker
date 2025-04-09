@@ -49,24 +49,6 @@ class TradingStatsApp(QApplication):
         self.existing_fill_count = len(fill_data)
         self.processor.compute_trade_stats(fill_data)
 
-    extra_metrics_names = [
-        MetricNames.AVG_SIZE,
-        MetricNames.FIRST_ENTRY,
-        MetricNames.LAST_EXIT,
-        MetricNames.INTERTRADE_AVG,
-        MetricNames.INTERTRADE_MAX,
-        MetricNames.AVG_ORDERS_PER_TRADE,
-        MetricNames.ORDERS_LONG_SHORT,
-        MetricNames.CONTRACTS_LONG_SHORT,
-        MetricNames.SCALED_WINS,
-        MetricNames.MAX_WIN_SZE,
-        MetricNames.LAST_UPDATED,
-        MetricNames.GAINS_LOSSES,
-        MetricNames.WIN_LOSS,
-        MetricNames.AVG_GAIN_LOSS,
-        MetricNames.AVG_POINTS
-    ] # Define keys to exclude if extra metrics is unchecked.
-
     def call_last_trade(self):
         self.last_trade_count = self.processor.get_total_trades_across_all()
         self.alert_manager.display_alert("You have called for a Last Trade. Winding down.", "ALL_ACCOUNTS", 5, 5, ConcernLevel.DEFAULT, "")
@@ -140,7 +122,7 @@ class TradingStatsApp(QApplication):
             row_index = 2
             for stat in selected_stats:
                 for key, value_color in stat.items():
-                    if not extra_metrics_checkbox.isChecked() and key in self.extra_metrics_names: # Check if key should be excluded.
+                    if not extra_metrics_checkbox.isChecked() and key in MetricNames.get_extra_metric_names(): # Check if key should be excluded.
                         continue
                     if isinstance(key, str) and not key:
                         layout.setRowMinimumHeight(row_index, 20)

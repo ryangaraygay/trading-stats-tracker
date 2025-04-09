@@ -21,3 +21,25 @@ class MetricNames:
     AVG_GAIN_LOSS = "Avg Trade P/L"
     AVG_POINTS = "Avg Points"
     MAX_POINTS = "Max Points"
+    PEAK_TIME_PNL = "Peak Time P/L"
+
+    @staticmethod
+    def get_extra_metric_names():
+        return [
+            MetricNames.AVG_SIZE,
+            MetricNames.FIRST_ENTRY,
+            MetricNames.LAST_EXIT,
+            MetricNames.INTERTRADE_AVG,
+            MetricNames.INTERTRADE_MAX,
+            MetricNames.AVG_ORDERS_PER_TRADE,
+            MetricNames.ORDERS_LONG_SHORT,
+            MetricNames.CONTRACTS_LONG_SHORT,
+            MetricNames.SCALED_WINS,
+            MetricNames.MAX_WIN_SZE,
+            MetricNames.LAST_UPDATED,
+            MetricNames.GAINS_LOSSES,
+            MetricNames.WIN_LOSS,
+            MetricNames.AVG_GAIN_LOSS,
+            MetricNames.AVG_POINTS,
+            MetricNames.PEAK_TIME_PNL
+        ] # Define keys to exclude if extra metrics is unchecked.
