@@ -1,12 +1,10 @@
 # TODO
 ## more features
-#   average win, average loss
 #   peak P/L times
 #   analyze losing streak (beyond current)
 #       streak history (time, mix, duration)
 
 ## improvements
 #   clarify config/defaults if secs, ms, mins (be as consistent as possible)
-#   calculate average through the loop instead of lambda
 #   limit to one instance running, alert if attempting to open more
 #   support for multi contract symbol+value

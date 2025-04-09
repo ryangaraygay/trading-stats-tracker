@@ -17,3 +17,7 @@ class MetricNames:
     MAX_WIN_SZE = "Max Win Size"
     LAST_UPDATED = "Last Updated"
     GAINS_LOSSES = "Gains/Losses"
+    WIN_LOSS = "Win/Loss"
+    AVG_GAIN_LOSS = "Avg Trade P/L"
+    AVG_POINTS = "Avg Points"
+    MAX_POINTS = "Max Points"

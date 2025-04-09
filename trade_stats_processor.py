@@ -115,16 +115,18 @@ class TradeStatsProcessor:
         total_sells = 0
         total_sell_contracts = 0
         total_profit_or_loss = 0.0
-        total_wins = 0
+        total_winning_trades = 0
         total_wins_long = 0
-        gains = 0
-        losses = 0
+        gains = []
+        losses = []
         max_realized_drawdown = 0
         max_realized_profit = 0
-        loss_max_size = 0 # not individual orders but within a trade (group)
-        win_max_size = 0 # not individual orders but within a trade (group)
-        loss_max_value = 0 # not individual orders but within a trade (group)
-        win_max_value = 0 # not individual orders but within a trade (group)
+        loss_max_size = 0
+        win_max_size = 0
+        loss_max_value = 0
+        win_max_value = 0
+        loss_points = []
+        win_points = []
         loss_scaled_count = 0 # losses that involved multiple entries
         win_scaled_count = 0 # wins that involved multiple entries
 
@@ -177,11 +179,8 @@ class TradeStatsProcessor:
                 completed_profit_loss = (sell_total_value - buy_total_value) * self.config.contract_value
                 total_profit_or_loss += completed_profit_loss
                 is_win = completed_profit_loss > 0
-                total_wins += is_win
+                total_winning_trades += is_win
                 total_wins_long += 1 if (is_win and entry_is_long) else 0 
-
-                gains += completed_profit_loss if is_win else 0
-                losses += 0 if is_win else abs(completed_profit_loss)
 
                 max_realized_drawdown = min(total_profit_or_loss, max_realized_drawdown)
                 max_realized_profit = max(total_profit_or_loss, max_realized_profit)
@@ -189,16 +188,21 @@ class TradeStatsProcessor:
                 duration = last_exit_time - entry_time
 
                 trade_size = self.calculate_max_quantity(grouped_trades)
+                trade_points = completed_profit_loss / (trade_size * self.config.contract_value)
                 entries_in_trade_count = len(grouped_trades["Filled BUY" if entry_is_long else "Filled SELL"])
 
                 if not is_win:
                     loss_max_size = max(loss_max_size, trade_size) 
                     loss_max_value = min(loss_max_value, completed_profit_loss)
+                    losses.append(completed_profit_loss)
+                    loss_points.append(trade_points)
                     loss_duration.append(duration)
                     loss_scaled_count += 1 if entries_in_trade_count > 1 else 0
                 else:
                     win_max_size = max(win_max_size, trade_size) 
                     win_max_value = max(win_max_value, completed_profit_loss)
+                    gains.append(completed_profit_loss)
+                    win_points.append(trade_points)
                     win_duration.append(duration)
                     win_scaled_count += 1 if entries_in_trade_count > 1 else 0
                 
@@ -211,10 +215,18 @@ class TradeStatsProcessor:
                 max_time = datetime.min
                 entry_time = datetime.max
 
-        win_rate = 50 if completed_trades == 0 else total_wins/completed_trades * 100
+        get_sum = lambda data: sum(data) if data else 0
+        get_average = lambda data: sum(data) / len(data) if data else 0
+        get_max = lambda data: max(data) if data else 0
+        get_min = lambda data: min(data) if data else 0
+
+        total_gains = get_sum(gains)
+        total_losses = get_sum(losses)
+
+        win_rate = 50 if completed_trades == 0 else total_winning_trades/completed_trades * 100
         long_win_rate = 0 if total_long_trades == 0 else total_wins_long/total_long_trades * 100
-        short_win_rate = 0 if total_short_trades == 0 else (total_wins - total_wins_long)/total_short_trades * 100
-        profit_factor = 1 if losses == 0 else gains/losses
+        short_win_rate = 0 if total_short_trades == 0 else (total_winning_trades - total_wins_long)/total_short_trades * 100
+        profit_factor = 1 if total_losses == 0 else total_gains/abs(total_losses)
         loss_avg_secs = my_utils.average_timedelta(loss_duration)
         loss_max_secs = my_utils.max_timedelta(loss_duration)
         win_avg_secs = my_utils.average_timedelta(win_duration)
@@ -222,6 +234,15 @@ class TradeStatsProcessor:
         time_between_trades_avg_secs = my_utils.average_timedelta(time_between_trades)
         time_between_trades_max_secs = my_utils.max_timedelta(time_between_trades)
         current_drawdown = -1 * int(max_realized_profit - total_profit_or_loss)
+
+        avg_gain = get_average(gains)
+        avg_loss = get_average(losses)
+        total_losing_trades = completed_trades - total_winning_trades
+
+        loss_max_points = get_min(loss_points)
+        win_max_points = get_max(win_points)
+        loss_avg_points = get_average(loss_points)
+        win_avg_points = get_average(win_points)
 
         directional_bias = ""
         long_bias_percentage = 0 if completed_trades == 0 else (total_long_trades / completed_trades) * 100
@@ -313,6 +334,7 @@ class TradeStatsProcessor:
         trading_stats = [
             {MetricNames.TRADES: [f'{completed_trades}', f'{overtrade_color}']},
             {"Win Rate": [f'{win_rate:.0f}%', f'{winrate_color}']},
+            {MetricNames.WIN_LOSS: [f'{int(total_winning_trades)} / {int(total_losing_trades)}']},
             {"Win Rate (L/S)": [f'{long_win_rate:.0f}% / {short_win_rate:.0f}%']},
             {"Bias": [f'{directional_bias}']},
             {"Scaled Losses": [f'{int(loss_scaled_count):,}', f'{loss_scaled_count_color}']},
@@ -326,11 +348,14 @@ class TradeStatsProcessor:
             {"Best/Worst": [f'{streak_tracker.best_streak:+} / {streak_tracker.worst_streak:+}']},
             {"": [f'']},
             {"Profit Factor": [f'{profit_factor:.01f}', f'{profitfactor_color}']},
-            {MetricNames.GAINS_LOSSES: [f'{int(gains):+,} / {int(losses * -1):+,}']},
+            {MetricNames.GAINS_LOSSES: [f'{int(total_gains):+,} / {int(total_losses):+,}']},
             {"Profit/Loss": [f'{int(total_profit_or_loss):+,}', f'{pnl_color}']},
             {"Drawdown": [f'{int(current_drawdown):+,}', f'{drawdown_color}']},
             {"Peak P/L": [f'{int(max_realized_profit):+,} / {int(max_realized_drawdown):+,}']},
+            {MetricNames.AVG_GAIN_LOSS: [f'{int(avg_gain):+,} / {int(avg_loss):+,}']},
             {"Max Trade P/L": [f'{int(win_max_value):+,} / {int(loss_max_value):+,}']},
+            {MetricNames.AVG_POINTS: [f'{int(win_avg_points):+,} / {int(loss_avg_points):+,}']},
+            {MetricNames.MAX_POINTS: [f'{int(win_max_points):+,} / {int(loss_max_points):+,}']},
             {"": [f'']},
             {"Open Size": [f'{int(position_size)}', f'{open_size_color}']},
             {MetricNames.OPEN_DURATION: [f'{open_entry_duration_str}']},
@@ -349,9 +374,7 @@ class TradeStatsProcessor:
             {MetricNames.CONTRACTS_LONG_SHORT: [f'{total_buy_contracts} / {total_sell_contracts}']},
             {MetricNames.SCALED_WINS: [f'{int(win_scaled_count):,}', f'{win_scaled_count_color}']},
             {MetricNames.MAX_WIN_SZE: [f'{int(win_max_size)}']},
-            # {"": [f'']},
             {MetricNames.LAST_UPDATED: [f'{datetime.now().strftime("%m/%d %H:%M")}']},
-            # {"Account": f'{account_name}'}
         ]
 
         alert_extramsg_default = ""
