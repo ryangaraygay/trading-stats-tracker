@@ -343,8 +343,6 @@ class TradeStatsProcessor:
             {"Consecutive W/L": [f'{streak_tracker.streak:+}', f'{losing_streak_color}']},
             {"Mix": [f'{streak_tracker.get_loss_mix()}']},
             {"Duration": [f'{streak_tracker.get_loss_elapsed_time_mins_str()}']},
-            {MetricNames.AVG_SIZE: [f'{streak_tracker.get_avg_size_of_current_streak_str()}']},
-            # {"Max Size": [f'{streak_tracker.get_max_size_of_current_streak_str()}']},
             {"Best/Worst": [f'{streak_tracker.best_streak:+} / {streak_tracker.worst_streak:+}']},
             {"": [f'']},
             {"Profit Factor": [f'{profit_factor:.01f}', f'{profitfactor_color}']},
