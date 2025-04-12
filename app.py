@@ -195,7 +195,7 @@ class TradingStatsApp(QApplication):
                             concernLevel = max(concernLevel, alert.level)
 
                         if (config.block_app_on_critical_alerts):
-                            if concernLevel > ConcernLevel.CAUTION:
+                            if concernLevel >= ConcernLevel.CAUTION:
                                 self.alert_manager.trigger_event(
                                     "block-app", 
                                     {"app_name": config.block_app_name, "duration": config.get_alert_duration(concernLevel)}, # sync duration of both block and alert 
