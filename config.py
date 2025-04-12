@@ -19,7 +19,8 @@ class Config:
         self.block_app_on_critical_alerts = self.get_bool('alert', 'block_app_on_critical_alerts')
         self.block_app_name = self.config['alert']['block_app_name']
         self.print_streak_followtrade_stats = self.get_bool('general', 'print_streak_followtrade_stats')
-        self.print_interval_stats = self.get_bool('general', 'print_interval_stats')
+        self.interval_stats_print = self.get_bool('interval_stats', 'print')
+        self.interval_stats_min = self.get_int('interval_stats', 'interval_mins')
 
         # for section in self.config.sections():
         #     print(f"[{section}]")
@@ -77,3 +78,9 @@ class Config:
         except (configparser.NoSectionError, configparser.NoOptionError):
             print(f"Warning: Option '{option}' not found in section '{section}'. Using default: {default}")
             return default
+
+    def get_int(self, section, option):
+        return int(self.config[section][option])
+    
+    def get_string(self, section, option):
+        return self.config[section][option]

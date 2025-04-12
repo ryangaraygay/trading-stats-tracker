@@ -104,9 +104,9 @@ class TradeStatsProcessor:
                 self.print_streak_followtrade_statistics('streak_stopper_list', self.streak_stopper_list)
                 self.print_streak_followtrade_statistics('streak_continuer_list', self.streak_continuer_list)
         
-            if self.config.print_interval_stats:
+            if self.config.interval_stats_print:
                 analyzer = TradeAnalyzer(self.trade_groups)
-                interval_stats = analyzer.analyze_by_time_interval()
+                interval_stats = analyzer.analyze_by_time_interval(self.config.interval_stats_min)
                 analyzer.print_table(interval_stats)
 
             self.compute_all_account_stats(fill_data)
