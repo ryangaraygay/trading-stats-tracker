@@ -5,7 +5,7 @@ from concern_level import ConcernLevel
 class Config:
     def __init__(self):
         self.config = self.load_config()
-        self.alert_enabled = self.get_bool(self.config, "alert", "enabled")
+        self.alert_enabled = self.get_bool('alert', 'enabled')
         self.alert_duration_default = int(self.config['alert']['duration_default'])
         self.alert_duration_warning = int(self.config['alert']['duration_warning'])
         self.alert_duration_critical = int(self.config['alert']['duration_critical'])
@@ -16,9 +16,10 @@ class Config:
         self.contract_value = int(self.config['general']['contract_value'])
         self.open_trade_duration_notice_mins = int(self.config['alert']['open_trade_duration_notice_mins'])
         self.open_duration_refresh_ms = int(self.config['alert']['open_duration_refresh_ms'])
-        self.block_app_on_critical_alerts = self.get_bool(self.config, "alert", "block_app_on_critical_alerts")
+        self.block_app_on_critical_alerts = self.get_bool('alert', 'block_app_on_critical_alerts')
         self.block_app_name = self.config['alert']['block_app_name']
-        self.print_streak_followtrade_stats = self.config['general']['print_streak_followtrade_stats']
+        self.print_streak_followtrade_stats = self.get_bool('general', 'print_streak_followtrade_stats')
+        self.print_interval_stats = self.get_bool('general', 'print_interval_stats')
 
         # for section in self.config.sections():
         #     print(f"[{section}]")
@@ -62,10 +63,10 @@ class Config:
 
         return config
 
-    def get_bool(self, config, section, option, default=False):
+    def get_bool(self, section, option, default=False):
         """Safely retrieves a boolean value from the configuration."""
         try:
-            value_str = config.get(section, option)
+            value_str = self.config.get(section, option)
             if value_str.lower() in ('true', 'yes', 'on', '1'):
                 return True
             elif value_str.lower() in ('false', 'no', 'off', '0'):

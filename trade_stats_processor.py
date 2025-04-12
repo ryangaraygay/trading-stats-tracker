@@ -11,6 +11,8 @@ from constants import CONST
 from metrics_names import MetricNames
 from alert_message import AlertMessage
 from config import Config
+from trade_group import TradeGroup
+from trade_analyzer import TradeAnalyzer
 
 class TradeStatsProcessor:
 
@@ -21,6 +23,7 @@ class TradeStatsProcessor:
         self.account_names_loaded = list()
         self.streak_stopper_list = []
         self.streak_continuer_list = []
+        self.trade_groups = list()
 
     def load_account_names(self, file_paths):
         account_names = set()
@@ -73,6 +76,7 @@ class TradeStatsProcessor:
 
             self.streak_stopper_list.clear()
             self.streak_continuer_list.clear()
+            self.trade_groups.clear()
 
             for account_name in account_names_with_fills:
                 filtered_list = my_utils.filter_namedtuples(fill_data, "account_name", account_name)
@@ -100,6 +104,11 @@ class TradeStatsProcessor:
                 self.print_streak_followtrade_statistics('streak_stopper_list', self.streak_stopper_list)
                 self.print_streak_followtrade_statistics('streak_continuer_list', self.streak_continuer_list)
         
+            if self.config.print_interval_stats:
+                analyzer = TradeAnalyzer(self.trade_groups)
+                interval_stats = analyzer.analyze_by_time_interval()
+                analyzer.print_table(interval_stats)
+
             self.compute_all_account_stats(fill_data)
         else:
             self.account_trading_stats.clear()
@@ -226,6 +235,7 @@ class TradeStatsProcessor:
                 total_short_trades += 1 if not entry_is_long else 0
 
                 streak_tracker.process(is_win, entry_is_long, entry_time, last_exit_time, trade_size, trade_points)
+                self.trade_groups.append(TradeGroup(entry_is_long, entry_time, last_exit_time, trade_size, trade_points))
 
                 grouped_trades.clear()
                 max_time = datetime.min
