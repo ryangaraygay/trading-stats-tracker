@@ -6,20 +6,7 @@ from PyQt6.QtWidgets import (
     QListWidget, QListWidgetItem, QLabel
 )
 from PyQt6.QtGui import QFont
-
-def get_most_recent_file(directory, pattern):
-    files = [f for f in os.listdir(directory) if re.match(pattern, f)]
-    if not files:
-        return None
-    files_with_paths = [os.path.join(directory, f) for f in files]
-    most_recent = max(files_with_paths, key=os.path.getmtime)
-    return most_recent
-
-def get_all_matching_files(directory, pattern):
-    files = [f for f in os.listdir(directory) if re.match(pattern, f)]
-    files_with_paths = [os.path.join(directory, f) for f in files]
-    files_with_paths.sort(key=os.path.getmtime, reverse=True)
-    return files_with_paths
+import file_utils
 
 class LogFileSelector(QDialog):
     def __init__(self, directory, pattern, parent=None):
@@ -36,7 +23,7 @@ class LogFileSelector(QDialog):
         self.most_recent_label.setFont(QFont("Arial", 27))
         layout.addWidget(self.most_recent_label)
 
-        most_recent_file = get_most_recent_file(self.directory, self.pattern)
+        most_recent_file = file_utils.get_most_recent_file(self.directory, self.pattern)
         if most_recent_file:
             self.most_recent_label.setText(f"Most Recent File: {most_recent_file}")
             self.selected_files.append(most_recent_file)
@@ -73,7 +60,7 @@ class LogFileSelector(QDialog):
 
     def populate_list(self):
         self.list_widget.clear()
-        all_files = get_all_matching_files(self.directory, self.pattern)
+        all_files = file_utils.get_all_matching_files(self.directory, self.pattern)
         for file in all_files:
             item = QListWidgetItem(file)
             self.list_widget.addItem(item)
