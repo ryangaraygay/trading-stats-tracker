@@ -1,8 +1,13 @@
-# TODO
-## more features
-#   analyze losing streak (beyond current)
-#       streak history (streak, time, mix, duration)
+TODO
+- losing streak history (streak, time, mix, duration)
+-   analyse all of losing streak history for insights
+- increase refresh to 5 seconds (measure CPU, memory etc)
 
-## improvements
-#   clarify config/defaults if secs, ms, mins (be as consistent as possible)
-#   support for multi contract symbol+value
+improvements
+- clarify config/defaults if secs, ms, mins (be as consistent as possible)
+- support for multi contract symbol+value
+
+separate analysis
+- time of day analysis on - atr(5) * volume
+
+MotiveWave price-delta gradient bar

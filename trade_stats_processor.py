@@ -19,6 +19,8 @@ class TradeStatsProcessor:
         self.account_trading_stats = {}
         self.account_trading_alerts = {}
         self.account_names_loaded = list()
+        self.streak_stopper_list = []
+        self.streak_continuer_list = []
 
     def load_account_names(self, file_paths):
         account_names = set()
@@ -69,6 +71,9 @@ class TradeStatsProcessor:
             # account_names_with_fills.clear()
             # account_names_with_fills.add("simulated")
 
+            self.streak_stopper_list.clear()
+            self.streak_continuer_list.clear()
+
             for account_name in account_names_with_fills:
                 filtered_list = my_utils.filter_namedtuples(fill_data, "account_name", account_name)
                 
@@ -90,7 +95,11 @@ class TradeStatsProcessor:
                         trading_alerts.append(alert)
                         
                 self.account_trading_alerts[account_name] = sorted(trading_alerts, key=lambda record: record.level, reverse=True)
-            
+        
+            if self.config.print_streak_followtrade_stats:
+                self.print_streak_followtrade_statistics('streak_stopper_list', self.streak_stopper_list)
+                self.print_streak_followtrade_statistics('streak_continuer_list', self.streak_continuer_list)
+        
             self.compute_all_account_stats(fill_data)
         else:
             self.account_trading_stats.clear()
@@ -216,7 +225,7 @@ class TradeStatsProcessor:
                 total_long_trades += 1 if entry_is_long else 0
                 total_short_trades += 1 if not entry_is_long else 0
 
-                streak_tracker.process(is_win, entry_is_long, entry_time, last_exit_time, trade_size)
+                streak_tracker.process(is_win, entry_is_long, entry_time, last_exit_time, trade_size, trade_points)
 
                 grouped_trades.clear()
                 max_time = datetime.min
@@ -226,6 +235,9 @@ class TradeStatsProcessor:
         get_average = lambda data: sum(data) / len(data) if data else 0
         get_max = lambda data: max(data) if data else 0
         get_min = lambda data: min(data) if data else 0
+
+        self.streak_stopper_list.extend(streak_tracker.losing_streak_stopper)
+        self.streak_continuer_list.extend(streak_tracker.losing_streak_continuer)
 
         total_gains = get_sum(gains)
         total_losses = get_sum(losses)
@@ -447,3 +459,22 @@ class TradeStatsProcessor:
             min_quantity = min(min_quantity, current_quantity)
 
         return max(abs(max_quantity), abs(min_quantity))
+
+    def print_streak_followtrade_statistics(self, list_name: str, data: list):
+        print(f'--- {list_name} ---')
+        sum_by_first_element = defaultdict(int)
+        count_by_first_element = defaultdict(int)
+        for first, second in data:
+            sum_by_first_element[first] += second
+            count_by_first_element[first] += 1
+        total_items = len(data)
+        sorted_first_elements = sorted(sum_by_first_element.keys())
+        for first_element in sorted_first_elements:
+            count = count_by_first_element[first_element]
+            total_sum = sum_by_first_element[first_element]
+            percentage = (count / total_items) * 100
+            print(f"InterTradeTime: {first_element}, Count: {count}, Points: {total_sum:.2f}, %: {percentage:.2f}%")
+        total_count = sum(count_by_first_element.values())
+        print(f"Count of InterTradeTime: {total_count}")
+        total_sum_second_elements = sum(sum_by_first_element.values())
+        print(f"Sum of Points: {total_sum_second_elements:.2f}")

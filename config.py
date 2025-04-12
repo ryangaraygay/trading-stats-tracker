@@ -18,6 +18,7 @@ class Config:
         self.open_duration_refresh_ms = int(self.config['alert']['open_duration_refresh_ms'])
         self.block_app_on_critical_alerts = self.get_bool(self.config, "alert", "block_app_on_critical_alerts")
         self.block_app_name = self.config['alert']['block_app_name']
+        self.print_streak_followtrade_stats = self.config['general']['print_streak_followtrade_stats']
 
         # for section in self.config.sections():
         #     print(f"[{section}]")

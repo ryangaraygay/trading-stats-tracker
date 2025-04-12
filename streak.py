@@ -11,8 +11,10 @@ class Streak:
         self.short_losses = 0
         self.streak_start_time = None
         self.streak_last_trade_time = None
+        self.losing_streak_stopper = []
+        self.losing_streak_continuer = []
 
-    def process(self, is_win, is_long=True, entry_time=None, exit_time=None, trade_size=1):
+    def process(self, is_win, is_long=True, entry_time=None, exit_time=None, trade_size=1, trade_value=0):
         """
         Processes a trade result and updates the streak.
 
@@ -32,6 +34,10 @@ class Streak:
                 self.streak += 1
             else:
                 self.streak = 1
+                if self.streak_last_trade_time is not None:
+                    streak_stopper_time = (entry_time - self.streak_last_trade_time).total_seconds() 
+                    self.losing_streak_stopper.append((streak_stopper_time, trade_value))
+
             self.is_last_trade_win = True
             self.best_streak = max(self.best_streak, self.streak)
             self.long_losses = 0
@@ -43,6 +49,9 @@ class Streak:
         else:
             if not self.is_last_trade_win:
                 self.streak -= 1
+                if self.streak_last_trade_time is not None:
+                    streak_continuer_time = (entry_time - self.streak_last_trade_time).total_seconds() 
+                    self.losing_streak_continuer.append((streak_continuer_time, trade_value))
                 self.streak_last_trade_time = entry_time
             else:
                 self.streak = -1
