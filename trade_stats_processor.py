@@ -317,8 +317,8 @@ class TradeStatsProcessor:
 
         losingstreak_conditions = [
             {"expr": lambda x: x <= -7, "level": ConcernLevel.CRITICAL, "msg": f"Stop Now. Protect the version of YOU that will trade well tomorrow."},
-            {"expr": lambda x: x <= -5, "level": ConcernLevel.WARNING, "msg": f"Stop. Follow Reset plan."},
-            {"expr": lambda x: x <= -3, "level": ConcernLevel.CAUTION, "msg": f"Slow down. Consecutive losses. {streak_tracker.get_extra_msg()}"},
+            {"expr": lambda x: x <= -4, "level": ConcernLevel.WARNING, "msg": f"Stop. Follow Reset plan."},
+            {"expr": lambda x: x <= -2, "level": ConcernLevel.CAUTION, "msg": f"Slow down. Consecutive losses. {streak_tracker.get_extra_msg()}"},
         ]
 
         loss_max_size_conditions = [
