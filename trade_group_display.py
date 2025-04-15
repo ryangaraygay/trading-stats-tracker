@@ -1,4 +1,3 @@
-from dataclasses import fields
 from trade_group import TradeGroup
 
 from PyQt6.QtWidgets import (
@@ -20,36 +19,81 @@ class TradeGroupDisplay(QDialog):
         self.setWindowTitle("Trade Group Details")
 
         table = QTableWidget()
-        dataclass_fields = fields(TradeGroup)
-        headers = [field.name for field in dataclass_fields]
-        readable_headers = ["Entry Time", "Exit Time", "Max Size", "Long/Short", "Points", "Amount", "Cumulative Points"]
-        display_headers = readable_headers if len(readable_headers) == len(headers) else [h.replace('_', ' ').title() for h in headers]
+        readable_headers = ["Entry Time", "Exit Time", "Max Size", "Long/Short",  "Points", "Amount", "Cumulative Points"]
         num_rows = len(trade_groups)
-        num_cols = len(headers) + 1  # Extra column for cumulative
+        num_cols = len(readable_headers)
         table.setRowCount(num_rows)
         table.setColumnCount(num_cols)
-        table.setHorizontalHeaderLabels(display_headers)
+        table.setHorizontalHeaderLabels(readable_headers)
+
+        def apply_gradient_to_column(table: QTableWidget, column_index: int):
+            values = []
+
+            # Gather float values from the column
+            for row in range(table.rowCount()):
+                item = table.item(row, column_index)
+                if not item:
+                    values.append(0.0)
+                    continue
+                try:
+                    value = float(item.data(Qt.ItemDataRole.UserRole))
+                except (ValueError, TypeError):
+                    value = 0.0
+                values.append(value)
+
+            if not values:
+                return
+
+            max_abs_val = max(abs(v) for v in values) or 1
+
+            # Apply background gradient based on value
+            for row, val in enumerate(values):
+                item = table.item(row, column_index)
+                if not item:
+                    continue
+
+                norm = abs(val) / max_abs_val
+
+                if val > 0:
+                    # White → Green
+                    r = int(255 - (255 - 100) * norm)
+                    g = int(255 - (255 - 255) * norm)
+                    b = int(255 - (255 - 100) * norm)
+                elif val < 0:
+                    # White → Red
+                    r = int(255 - (255 - 255) * norm)
+                    g = int(255 - (255 - 100) * norm)
+                    b = int(255 - (255 - 100) * norm)
+                else:
+                    r = g = b = 255  # White
+
+                item.setBackground(QBrush(QColor(r, g, b)))
+                item.setForeground(QBrush(QColor(0, 0, 0)))  # Black text
+
         for row_idx, trade_group in enumerate(trade_groups):
             val1 = trade_group.entry_time; item1 = DateTimeTableWidgetItem(format_datetime(val1), val1); item1.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter); table.setItem(row_idx, 0, item1)
             val2 = trade_group.exit_time; item2 = DateTimeTableWidgetItem(format_datetime(val2), val2); item2.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter); table.setItem(row_idx, 1, item2)
-            val3 = trade_group.max_trade_size; item3 = NumericTableWidgetItem(format_float_size(val3), val3); item3.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            item3.setForeground(QBrush(QColor(100, 255, 100) if trade_group.entry_is_long else QColor(255, 100, 100)))
+            
+            val3 = trade_group.max_trade_size * (1 if trade_group.entry_is_long else -1)
+            item3 = NumericTableWidgetItem(format_float_size(val3), val3)
+            item3.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            item3.setData(Qt.ItemDataRole.UserRole, val3)  # Store numeric value for later access
             table.setItem(row_idx, 2, item3)
+            apply_gradient_to_column(table, 2)
 
             val0 = trade_group.entry_is_long; item0 = QTableWidgetItem("Long" if val0 else "Short"); item0.setTextAlignment(Qt.AlignmentFlag.AlignCenter); table.setItem(row_idx, 3, item0)
 
             val4 = trade_group.trade_point; item4 = NumericTableWidgetItem(format_float_points(val4), val4); item4.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            item4.setForeground(QBrush(QColor(0, 0, 0)))
-            if val4 > 0: item4.setBackground(QBrush(QColor(200, 255, 200)))
-            elif val4 < 0: item4.setBackground(QBrush(QColor(255, 200, 200)))
-            else: item4.setBackground(QBrush(QColor(255, 255, 255)))
+            item4.setData(Qt.ItemDataRole.UserRole, val4)  # Store numeric value for later access
             table.setItem(row_idx, 4, item4)
+            apply_gradient_to_column(table, 4)
 
             val5 = trade_group.trade_amount
             item5 = NumericTableWidgetItem(format_float_amount(val5), val5)
             item5.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             item5.setData(Qt.ItemDataRole.UserRole, val5)  # Store numeric value for later access
             table.setItem(row_idx, 5, item5)
+            apply_gradient_to_column(table, 5)
 
             # Add Cumulative column (we will update this later)
             item6 = QTableWidgetItem("")  # Placeholder
@@ -60,22 +104,42 @@ class TradeGroupDisplay(QDialog):
 
             for col_idx in range(num_cols):
                 item = table.item(row_idx, col_idx); item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable) if item else None
+        
         table.setSortingEnabled(True)
 
         def update_cumulative_column(table: QTableWidget):
             cumulative = 0.0
+            cumulative_values = []
+
+            # First pass to collect cumulative values
             for row in range(table.rowCount()):
                 item = table.item(row, 5)
                 if not item:
+                    cumulative_values.append(0.0)
                     continue
                 try:
-                    value = float(item.data(Qt.ItemDataRole.UserRole))  # Assuming raw value stored in UserRole
+                    value = float(item.data(Qt.ItemDataRole.UserRole))
                 except (ValueError, TypeError):
                     value = 0.0
                 cumulative += value
-                cum_item = table.item(row, 6)
-                if cum_item:
-                    cum_item.setText(f"{int(cumulative):+,}")
+                cumulative_values.append(cumulative)
+
+            if not cumulative_values:
+                return
+
+            max_abs_val = max(abs(v) for v in cumulative_values)
+            if max_abs_val == 0:
+                max_abs_val = 1  # prevent divide-by-zero
+
+            # Second pass: set text and background color
+            for row, cum_val in enumerate(cumulative_values):
+                item = table.item(row, 6)
+                if not item:
+                    continue
+                item.setText(f"{cum_val:.2f}")
+                item.setData(Qt.ItemDataRole.UserRole, cum_val)  # Store numeric value for later access
+
+            apply_gradient_to_column(table, 6)
 
         table.horizontalHeader().sortIndicatorChanged.connect(lambda _, __: update_cumulative_column(table))
         header = table.horizontalHeader()
@@ -85,6 +149,7 @@ class TradeGroupDisplay(QDialog):
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
         table.setFont(QFont("Courier New", 20))
         update_cumulative_column(table)
 
@@ -116,7 +181,7 @@ class TradeGroupDisplay(QDialog):
 # --- Formatting functions (Unchanged) ---
 def format_bool(val): return str(val)
 def format_datetime(dt): return dt.strftime('%m-%d %H:%M') if dt else ""
-def format_float_size(val): return f"{int(val)}"
+def format_float_size(val): return f"{int(val):+}"
 def format_float_points(val): return f"{val:.2f}"
 def format_float_amount(val): return f"{int(val):+,}"
 
