@@ -8,6 +8,7 @@ from metrics_names import MetricNames
 from trade_stats_processor import TradeStatsProcessor
 from hammerspoon_alert_manager import HammerspoonAlertManager
 from constants import CONST
+from trade_group_display import TradeGroupDisplay
 
 from collections import Counter
 from datetime import datetime
@@ -85,6 +86,7 @@ class TradingStatsApp(QApplication):
         select_logfile_button = QPushButton("Select Log File(s)")
         refresh_all_button = QPushButton("Refresh All")
         call_last_trade_button = QPushButton("Call For Last Trade")
+        show_trades_button = QPushButton("Show Trades")
 
         def refresh_data():
             selected_key = self.dropdown.currentText()
@@ -114,7 +116,8 @@ class TradingStatsApp(QApplication):
                         pause_button, 
                         close_button, 
                         select_logfile_button,
-                        call_last_trade_button):
+                        call_last_trade_button,
+                        show_trades_button):
                     item.widget().deleteLater()
                     layout.removeItem(item)
 
@@ -244,6 +247,15 @@ class TradingStatsApp(QApplication):
         select_logfile_button.clicked.connect(select_log_files)
         call_last_trade_button.clicked.connect(self.call_last_trade)
 
+        def open_trades_window():
+            account_name = self.dropdown.currentText()
+            if account_name in self.processor.account_trade_groups.keys():
+                selected_trade_groups = self.processor.account_trade_groups[account_name]
+                trade_group_dialog = TradeGroupDisplay(selected_trade_groups, self.window)
+                trade_group_dialog.show()
+
+        show_trades_button.clicked.connect(open_trades_window)
+
         button_style = """
             QPushButton {
                 background-color: gray;
@@ -251,6 +263,8 @@ class TradingStatsApp(QApplication):
                 border-radius: 5px;
                 font-size: 16pt;
                 padding: 5px 10px;
+                min-width: 150px;
+                max-width: 150px;
             }
             QPushButton:hover {
                 background-color: lightgray;
@@ -261,6 +275,7 @@ class TradingStatsApp(QApplication):
         refresh_button.setStyleSheet(button_style)
         refresh_all_button.setStyleSheet(button_style)
         close_button.setStyleSheet(button_style)
+        show_trades_button.setStyleSheet(button_style)
 
         button_row_index_start = 43 # fixed so we don't have to window adjust when refreshing and some accounts have no fills (and therefore no stats)
         layout.addWidget(extra_metrics_checkbox, button_row_index_start, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
@@ -269,6 +284,7 @@ class TradingStatsApp(QApplication):
         layout.addWidget(refresh_button, button_row_index_start + 3, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(refresh_all_button, button_row_index_start + 4, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(close_button, button_row_index_start + 5, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(show_trades_button, button_row_index_start + 6, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
 
         self.window.adjustSize()
         self.window.show()

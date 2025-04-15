@@ -23,7 +23,7 @@ class TradeStatsProcessor:
         self.account_names_loaded = list()
         self.streak_stopper_list = []
         self.streak_continuer_list = []
-        self.trade_groups = list()
+        self.account_trade_groups = {}
 
     def load_account_names(self, file_paths):
         account_names = set()
@@ -65,6 +65,7 @@ class TradeStatsProcessor:
 
     def compute_trade_stats(self, fill_data):
         account_names_with_fills = set()
+        trade_groups_consolidated = []
         if fill_data:
             # get list of AccountNames in fill
             for item in fill_data:
@@ -76,12 +77,11 @@ class TradeStatsProcessor:
 
             self.streak_stopper_list.clear()
             self.streak_continuer_list.clear()
-            self.trade_groups.clear()
 
             for account_name in account_names_with_fills:
                 filtered_list = my_utils.filter_namedtuples(fill_data, "account_name", account_name)
                 
-                trading_stats, alerts_data = self.get_stats(filtered_list)
+                trading_stats, alerts_data, trade_groups = self.get_stats(filtered_list)
 
                 self.account_trading_stats[account_name] = trading_stats
                 
@@ -99,13 +99,17 @@ class TradeStatsProcessor:
                         trading_alerts.append(alert)
                         
                 self.account_trading_alerts[account_name] = sorted(trading_alerts, key=lambda record: record.level, reverse=True)
+
+                self.account_trade_groups[account_name] = trade_groups
+
+                trade_groups_consolidated.extend(trade_groups)
         
             if self.config.print_streak_followtrade_stats:
                 self.print_streak_followtrade_statistics('streak_stopper_list', self.streak_stopper_list)
                 self.print_streak_followtrade_statistics('streak_continuer_list', self.streak_continuer_list)
         
             if self.config.interval_stats_print:
-                analyzer = TradeAnalyzer(self.trade_groups)
+                analyzer = TradeAnalyzer(trade_groups_consolidated)
                 interval_stats = analyzer.analyze_by_time_interval(self.config.interval_stats_min)
                 analyzer.print_table(interval_stats)
 
@@ -124,6 +128,7 @@ class TradeStatsProcessor:
     def get_stats(self, filtered_list):
         sorted_fill = sorted(filtered_list, key=lambda record: record.order_id, reverse=False) # keeping only digits for SIM-ID orders
         
+        trade_groups = []
         grouped_trades = defaultdict(list)
         completed_trades = 0
         total_long_trades = 0
@@ -231,7 +236,7 @@ class TradeStatsProcessor:
                 total_short_trades += 1 if not entry_is_long else 0
 
                 streak_tracker.process(is_win, entry_is_long, entry_time, last_exit_time, trade_size, trade_points)
-                self.trade_groups.append(TradeGroup(entry_is_long, entry_time, last_exit_time, trade_size, trade_points))
+                trade_groups.append(TradeGroup(entry_is_long, entry_time, last_exit_time, trade_size, trade_points))
 
                 grouped_trades.clear()
                 max_time = datetime.min
@@ -430,7 +435,7 @@ class TradeStatsProcessor:
             (loss_scaled_count_msg, loss_scaled_count_level, alert_extramsg_default),
         ]
         
-        return trading_stats, alerts_data
+        return trading_stats, alerts_data, trade_groups
 
     def compute_all_account_stats(self, fill_data):
         # for analysis only so we don't need alerts
@@ -438,7 +443,7 @@ class TradeStatsProcessor:
         # there are some that are not (e.g. streak) - although they can be handled, choosing to simply for now
         # and just recompute for unfiltered fill data
         if fill_data:
-            trading_stats, _ = self.get_stats(fill_data)
+            trading_stats, _, _ = self.get_stats(fill_data)
             self.account_trading_stats[CONST.ALL_ACCOUNTS] = trading_stats
 
     def evaluate_conditions(self, value, conditions):
