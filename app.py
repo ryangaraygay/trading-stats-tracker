@@ -264,7 +264,6 @@ class TradingStatsApp(QApplication):
                 font-size: 16pt;
                 padding: 5px 10px;
                 min-width: 150px;
-                max-width: 150px;
             }
             QPushButton:hover {
                 background-color: lightgray;
@@ -279,12 +278,14 @@ class TradingStatsApp(QApplication):
 
         button_row_index_start = 43 # fixed so we don't have to window adjust when refreshing and some accounts have no fills (and therefore no stats)
         layout.addWidget(extra_metrics_checkbox, button_row_index_start, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(call_last_trade_button, button_row_index_start + 1, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(select_logfile_button, button_row_index_start + 2, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(call_last_trade_button, button_row_index_start + 1, 0, 1, 1, alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(show_trades_button, button_row_index_start + 1, 1, 1, 1, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        layout.addWidget(select_logfile_button, button_row_index_start + 2, 0, 1, 1, alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(refresh_all_button, button_row_index_start + 2, 1, 1, 1, alignment=Qt.AlignmentFlag.AlignCenter)
+
         layout.addWidget(refresh_button, button_row_index_start + 3, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(refresh_all_button, button_row_index_start + 4, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(close_button, button_row_index_start + 5, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(show_trades_button, button_row_index_start + 6, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(close_button, button_row_index_start + 4, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
 
         self.window.adjustSize()
         self.window.show()
