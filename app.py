@@ -262,7 +262,7 @@ class TradingStatsApp(QApplication):
         refresh_all_button.setStyleSheet(button_style)
         close_button.setStyleSheet(button_style)
 
-        button_row_index_start = 42 # fixed so we don't have to window adjust when refreshing and some accounts have no fills (and therefore no stats)
+        button_row_index_start = 43 # fixed so we don't have to window adjust when refreshing and some accounts have no fills (and therefore no stats)
         layout.addWidget(extra_metrics_checkbox, button_row_index_start, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(call_last_trade_button, button_row_index_start + 1, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(select_logfile_button, button_row_index_start + 2, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)

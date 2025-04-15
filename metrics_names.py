@@ -22,6 +22,7 @@ class MetricNames:
     AVG_POINTS = "Avg Points"
     MAX_POINTS = "Max Points"
     PEAK_TIME_PNL = "Peak Time P/L"
+    WIN_RATE_LONG_SHORT = "Win Rate (L/S)"
 
     @staticmethod
     def get_extra_metric_names():
@@ -41,5 +42,6 @@ class MetricNames:
             MetricNames.WIN_LOSS,
             MetricNames.AVG_GAIN_LOSS,
             MetricNames.AVG_POINTS,
-            MetricNames.PEAK_TIME_PNL
+            MetricNames.PEAK_TIME_PNL,
+            MetricNames.WIN_RATE_LONG_SHORT
         ] # Define keys to exclude if extra metrics is unchecked.
