@@ -22,10 +22,10 @@ class TradeGroupDisplay(QDialog):
         table = QTableWidget()
         dataclass_fields = fields(TradeGroup)
         headers = [field.name for field in dataclass_fields]
-        readable_headers = ["Entry Time", "Exit Time", "Max Size", "Long/Short", "Points"]
+        readable_headers = ["Entry Time", "Exit Time", "Max Size", "Long/Short", "Points", "Amount", "Cumulative Points"]
         display_headers = readable_headers if len(readable_headers) == len(headers) else [h.replace('_', ' ').title() for h in headers]
         num_rows = len(trade_groups)
-        num_cols = len(headers)
+        num_cols = len(headers) + 1  # Extra column for cumulative
         table.setRowCount(num_rows)
         table.setColumnCount(num_cols)
         table.setHorizontalHeaderLabels(display_headers)
@@ -33,7 +33,6 @@ class TradeGroupDisplay(QDialog):
             val1 = trade_group.entry_time; item1 = DateTimeTableWidgetItem(format_datetime(val1), val1); item1.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter); table.setItem(row_idx, 0, item1)
             val2 = trade_group.exit_time; item2 = DateTimeTableWidgetItem(format_datetime(val2), val2); item2.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter); table.setItem(row_idx, 1, item2)
             val3 = trade_group.max_trade_size; item3 = NumericTableWidgetItem(format_float_size(val3), val3); item3.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            
             item3.setForeground(QBrush(QColor(100, 255, 100) if trade_group.entry_is_long else QColor(255, 100, 100)))
             table.setItem(row_idx, 2, item3)
 
@@ -46,16 +45,48 @@ class TradeGroupDisplay(QDialog):
             else: item4.setBackground(QBrush(QColor(255, 255, 255)))
             table.setItem(row_idx, 4, item4)
 
+            val5 = trade_group.trade_amount
+            item5 = NumericTableWidgetItem(format_float_amount(val5), val5)
+            item5.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            item5.setData(Qt.ItemDataRole.UserRole, val5)  # Store numeric value for later access
+            table.setItem(row_idx, 5, item5)
+
+            # Add Cumulative column (we will update this later)
+            item6 = QTableWidgetItem("")  # Placeholder
+            item6.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            item6.setForeground(QBrush(QColor(0, 0, 0)))
+            item6.setFlags(item6.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            table.setItem(row_idx, 6, item6)
+
             for col_idx in range(num_cols):
                 item = table.item(row_idx, col_idx); item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable) if item else None
         table.setSortingEnabled(True)
+
+        def update_cumulative_column(table: QTableWidget):
+            cumulative = 0.0
+            for row in range(table.rowCount()):
+                item = table.item(row, 5)
+                if not item:
+                    continue
+                try:
+                    value = float(item.data(Qt.ItemDataRole.UserRole))  # Assuming raw value stored in UserRole
+                except (ValueError, TypeError):
+                    value = 0.0
+                cumulative += value
+                cum_item = table.item(row, 6)
+                if cum_item:
+                    cum_item.setText(f"{int(cumulative):+,}")
+
+        table.horizontalHeader().sortIndicatorChanged.connect(lambda _, __: update_cumulative_column(table))
         header = table.horizontalHeader()
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
         table.setFont(QFont("Courier New", 20))
+        update_cumulative_column(table)
 
         layout = QVBoxLayout(self)
         layout.addWidget(table)
@@ -87,6 +118,7 @@ def format_bool(val): return str(val)
 def format_datetime(dt): return dt.strftime('%m-%d %H:%M') if dt else ""
 def format_float_size(val): return f"{int(val)}"
 def format_float_points(val): return f"{val:.2f}"
+def format_float_amount(val): return f"{int(val):+,}"
 
 class DateTimeTableWidgetItem(QTableWidgetItem):
     def __init__(self, text, dt_value): super().__init__(text); self.dt_value = dt_value

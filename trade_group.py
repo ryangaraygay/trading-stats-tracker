@@ -15,3 +15,4 @@ class TradeGroup:
     exit_time: datetime.datetime   # Typically the time of the final exit order
     max_trade_size: float # Max contracts/lots held at any point during the trade
     trade_point: float    # Net profit/loss in points for the entire trade group
+    trade_amount: float

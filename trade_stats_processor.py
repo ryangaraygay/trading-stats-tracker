@@ -236,7 +236,7 @@ class TradeStatsProcessor:
                 total_short_trades += 1 if not entry_is_long else 0
 
                 streak_tracker.process(is_win, entry_is_long, entry_time, last_exit_time, trade_size, trade_points)
-                trade_groups.append(TradeGroup(entry_is_long, entry_time, last_exit_time, trade_size, trade_points))
+                trade_groups.append(TradeGroup(entry_is_long, entry_time, last_exit_time, trade_size, trade_points, completed_profit_loss))
 
                 grouped_trades.clear()
                 max_time = datetime.min
