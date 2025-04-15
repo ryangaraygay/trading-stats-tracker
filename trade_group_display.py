@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import (
     QHeaderView,
 )
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QFont, QColor, QBrush
 
 class TradeGroupDisplay(QDialog):
     def __init__(self, trade_groups, parent=None):
@@ -21,7 +22,7 @@ class TradeGroupDisplay(QDialog):
         table = QTableWidget()
         dataclass_fields = fields(TradeGroup)
         headers = [field.name for field in dataclass_fields]
-        readable_headers = ["Entry Long", "Entry Time", "Exit Time", "Max Size", "Points"]
+        readable_headers = ["Entry Time", "Exit Time", "Max Size", "Long/Short", "Points"]
         display_headers = readable_headers if len(readable_headers) == len(headers) else [h.replace('_', ' ').title() for h in headers]
         num_rows = len(trade_groups)
         num_cols = len(headers)
@@ -29,11 +30,22 @@ class TradeGroupDisplay(QDialog):
         table.setColumnCount(num_cols)
         table.setHorizontalHeaderLabels(display_headers)
         for row_idx, trade_group in enumerate(trade_groups):
-            val0 = trade_group.entry_is_long; item0 = BoolTableWidgetItem(format_bool(val0), val0); item0.setTextAlignment(Qt.AlignmentFlag.AlignCenter); table.setItem(row_idx, 0, item0)
-            val1 = trade_group.entry_time; item1 = DateTimeTableWidgetItem(format_datetime(val1), val1); item1.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter); table.setItem(row_idx, 1, item1)
-            val2 = trade_group.exit_time; item2 = DateTimeTableWidgetItem(format_datetime(val2), val2); item2.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter); table.setItem(row_idx, 2, item2)
-            val3 = trade_group.max_trade_size; item3 = NumericTableWidgetItem(format_float_size(val3), val3); item3.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter); table.setItem(row_idx, 3, item3)
-            val4 = trade_group.trade_point; item4 = NumericTableWidgetItem(format_float_points(val4), val4); item4.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter); table.setItem(row_idx, 4, item4)
+            val1 = trade_group.entry_time; item1 = DateTimeTableWidgetItem(format_datetime(val1), val1); item1.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter); table.setItem(row_idx, 0, item1)
+            val2 = trade_group.exit_time; item2 = DateTimeTableWidgetItem(format_datetime(val2), val2); item2.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter); table.setItem(row_idx, 1, item2)
+            val3 = trade_group.max_trade_size; item3 = NumericTableWidgetItem(format_float_size(val3), val3); item3.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            
+            item3.setForeground(QBrush(QColor(100, 255, 100) if trade_group.entry_is_long else QColor(255, 100, 100)))
+            table.setItem(row_idx, 2, item3)
+
+            val0 = trade_group.entry_is_long; item0 = QTableWidgetItem("Long" if val0 else "Short"); item0.setTextAlignment(Qt.AlignmentFlag.AlignCenter); table.setItem(row_idx, 3, item0)
+
+            val4 = trade_group.trade_point; item4 = NumericTableWidgetItem(format_float_points(val4), val4); item4.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            item4.setForeground(QBrush(QColor(0, 0, 0)))
+            if val4 > 0: item4.setBackground(QBrush(QColor(200, 255, 200)))
+            elif val4 < 0: item4.setBackground(QBrush(QColor(255, 200, 200)))
+            else: item4.setBackground(QBrush(QColor(255, 255, 255)))
+            table.setItem(row_idx, 4, item4)
+
             for col_idx in range(num_cols):
                 item = table.item(row_idx, col_idx); item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable) if item else None
         table.setSortingEnabled(True)
@@ -43,6 +55,8 @@ class TradeGroupDisplay(QDialog):
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
+        table.setFont(QFont("Courier New", 20))
+
         layout = QVBoxLayout(self)
         layout.addWidget(table)
 
@@ -62,7 +76,7 @@ class TradeGroupDisplay(QDialog):
         height += table.frameWidth() * 2
 
         # Add layout spacing/margins
-        width += layout.contentsMargins().left() + layout.contentsMargins().right() + 10 # add for vertical scrollbar
+        width += layout.contentsMargins().left() + layout.contentsMargins().right() + 20 # add for vertical scrollbar
         height += layout.contentsMargins().top() + layout.contentsMargins().bottom()
 
         # Resize dialog
@@ -70,9 +84,9 @@ class TradeGroupDisplay(QDialog):
 
 # --- Formatting functions (Unchanged) ---
 def format_bool(val): return str(val)
-def format_datetime(dt): return dt.strftime('%Y-%m-%d %H:%M:%S') if dt else ""
-def format_float_size(val): return f"{val:.1f}"
-def format_float_points(val): return f"{val:.3f}"
+def format_datetime(dt): return dt.strftime('%m-%d %H:%M') if dt else ""
+def format_float_size(val): return f"{int(val)}"
+def format_float_points(val): return f"{val:.2f}"
 
 class DateTimeTableWidgetItem(QTableWidgetItem):
     def __init__(self, text, dt_value): super().__init__(text); self.dt_value = dt_value
