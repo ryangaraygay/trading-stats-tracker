@@ -17,4 +17,7 @@ run:
 run_local:
 	CONFIG_ENV=local python app.py
 
+test_resource_usage:
+	CONFIG_ENV=local scalene app.py
+
 all: #install lint test

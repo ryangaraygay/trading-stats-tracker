@@ -178,3 +178,5 @@ cython_debug/
 sample-log-files/
 sample-account-names.txt
 profile_output.out
+profile.html
+profile.json
