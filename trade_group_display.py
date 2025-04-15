@@ -19,17 +19,22 @@ class TradeGroupDisplay(QDialog):
         self.setWindowTitle("Trade Group Details")
 
         table = QTableWidget()
-        readable_headers = ["Entry Time", "Exit Time", "Max Size", "Long/Short",  "Points", "Amount", "Cumulative Points"]
+        readable_headers = ["Entry Time", "Exit Time", "Max Size", "Long/Short",  "Points", "Amount", "Cumulative", "Streak"]
         num_rows = len(trade_groups)
         num_cols = len(readable_headers)
         table.setRowCount(num_rows)
         table.setColumnCount(num_cols)
         table.setHorizontalHeaderLabels(readable_headers)
 
-        def apply_gradient_to_column(table: QTableWidget, column_index: int):
+        def apply_gradient_to_column(
+            table: QTableWidget,
+            column_index: int,
+            color_positive: QColor = QColor(100, 255, 100),
+            color_negative: QColor = QColor(255, 100, 100)
+        ):
             values = []
 
-            # Gather float values from the column
+            # Collect numeric values from the column
             for row in range(table.rowCount()):
                 item = table.item(row, column_index)
                 if not item:
@@ -46,7 +51,7 @@ class TradeGroupDisplay(QDialog):
 
             max_abs_val = max(abs(v) for v in values) or 1
 
-            # Apply background gradient based on value
+            # Apply background gradient
             for row, val in enumerate(values):
                 item = table.item(row, column_index)
                 if not item:
@@ -55,15 +60,15 @@ class TradeGroupDisplay(QDialog):
                 norm = abs(val) / max_abs_val
 
                 if val > 0:
-                    # White → Green
-                    r = int(255 - (255 - 100) * norm)
-                    g = int(255 - (255 - 255) * norm)
-                    b = int(255 - (255 - 100) * norm)
+                    # Interpolate between white and color_positive
+                    r = int(255 - (255 - color_positive.red()) * norm)
+                    g = int(255 - (255 - color_positive.green()) * norm)
+                    b = int(255 - (255 - color_positive.blue()) * norm)
                 elif val < 0:
-                    # White → Red
-                    r = int(255 - (255 - 255) * norm)
-                    g = int(255 - (255 - 100) * norm)
-                    b = int(255 - (255 - 100) * norm)
+                    # Interpolate between white and color_negative
+                    r = int(255 - (255 - color_negative.red()) * norm)
+                    g = int(255 - (255 - color_negative.green()) * norm)
+                    b = int(255 - (255 - color_negative.blue()) * norm)
                 else:
                     r = g = b = 255  # White
 
@@ -79,7 +84,7 @@ class TradeGroupDisplay(QDialog):
             item3.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             item3.setData(Qt.ItemDataRole.UserRole, val3)  # Store numeric value for later access
             table.setItem(row_idx, 2, item3)
-            apply_gradient_to_column(table, 2)
+            apply_gradient_to_column(table, 2, QColor(100, 100, 255), QColor(255, 165, 100))
 
             val0 = trade_group.entry_is_long; item0 = QTableWidgetItem("Long" if val0 else "Short"); item0.setTextAlignment(Qt.AlignmentFlag.AlignCenter); table.setItem(row_idx, 3, item0)
 
@@ -101,6 +106,13 @@ class TradeGroupDisplay(QDialog):
             item6.setForeground(QBrush(QColor(0, 0, 0)))
             item6.setFlags(item6.flags() & ~Qt.ItemFlag.ItemIsEditable)
             table.setItem(row_idx, 6, item6)
+
+            # Add Cumulative Streak column (we will update this later)
+            item7 = QTableWidgetItem("")  # Placeholder
+            item7.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            item7.setForeground(QBrush(QColor(0, 0, 0)))
+            item7.setFlags(item7.flags() & ~Qt.ItemFlag.ItemIsEditable)
+            table.setItem(row_idx, 7, item7)
 
             for col_idx in range(num_cols):
                 item = table.item(row_idx, col_idx); item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable) if item else None
@@ -127,21 +139,54 @@ class TradeGroupDisplay(QDialog):
             if not cumulative_values:
                 return
 
-            max_abs_val = max(abs(v) for v in cumulative_values)
-            if max_abs_val == 0:
-                max_abs_val = 1  # prevent divide-by-zero
-
             # Second pass: set text and background color
             for row, cum_val in enumerate(cumulative_values):
                 item = table.item(row, 6)
                 if not item:
                     continue
-                item.setText(f"{cum_val:.2f}")
+                item.setText(format_float_cumulative_amount(cum_val))
                 item.setData(Qt.ItemDataRole.UserRole, cum_val)  # Store numeric value for later access
 
             apply_gradient_to_column(table, 6)
 
-        table.horizontalHeader().sortIndicatorChanged.connect(lambda _, __: update_cumulative_column(table))
+        def update_streak_cumulative_column(table: QTableWidget, points_col: int, streak_col: int):
+            prev_sign = 0
+            streak_total = 0.0
+            streak_values = []
+
+            for row in range(table.rowCount()):
+                item = table.item(row, points_col)
+                if not item:
+                    streak_values.append(0.0)
+                    continue
+
+                try:
+                    val = float(item.data(Qt.ItemDataRole.UserRole))
+                except (ValueError, TypeError):
+                    val = 0.0
+
+                current_sign = 1 if val > 0 else -1 if val < 0 else 0
+
+                # Reset streak if sign changes (ignores 0 for reset purposes)
+                if current_sign != 0 and current_sign != prev_sign:
+                    streak_total = 0.0
+
+                streak_total += val
+                streak_values.append(streak_total)
+                prev_sign = current_sign if current_sign != 0 else prev_sign
+
+            for row, val in enumerate(streak_values):
+                item = QTableWidgetItem(format_float_cumulative_streak_amount(val))
+                item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                item.setData(Qt.ItemDataRole.UserRole, val)
+                item.setForeground(QBrush(QColor(150, 255, 150) if val > 0 else QColor(255, 150, 150) if val < 0 else QColor(255, 255, 255)))
+                table.setItem(row, streak_col, item)
+
+        def update_cumulative_columns(table: QTableWidget, point_col_index:int, streak_col_index: int):
+            update_cumulative_column(table)
+            update_streak_cumulative_column(table, point_col_index, streak_col_index)
+
+        table.horizontalHeader().sortIndicatorChanged.connect(lambda _, __: update_cumulative_columns(table, 5, 7))
         header = table.horizontalHeader()
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
@@ -151,7 +196,7 @@ class TradeGroupDisplay(QDialog):
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
         table.setFont(QFont("Courier New", 20))
-        update_cumulative_column(table)
+        update_cumulative_columns(table, 5, 7)
 
         layout = QVBoxLayout(self)
         layout.addWidget(table)
@@ -183,7 +228,9 @@ def format_bool(val): return str(val)
 def format_datetime(dt): return dt.strftime('%m-%d %H:%M') if dt else ""
 def format_float_size(val): return f"{int(val):+}"
 def format_float_points(val): return f"{val:.2f}"
-def format_float_amount(val): return f"{int(val):+,}"
+def format_float_amount(val): return f"{int(val):,}"
+def format_float_cumulative_amount(val): return f"{int(val):,}"
+def format_float_cumulative_streak_amount(val): return f"{int(val):,}"
 
 class DateTimeTableWidgetItem(QTableWidgetItem):
     def __init__(self, text, dt_value): super().__init__(text); self.dt_value = dt_value
