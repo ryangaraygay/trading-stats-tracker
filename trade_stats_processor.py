@@ -443,8 +443,9 @@ class TradeStatsProcessor:
         # there are some that are not (e.g. streak) - although they can be handled, choosing to simply for now
         # and just recompute for unfiltered fill data
         if fill_data:
-            trading_stats, _, _ = self.get_stats(fill_data)
+            trading_stats, _, trade_groups = self.get_stats(fill_data)
             self.account_trading_stats[CONST.ALL_ACCOUNTS] = trading_stats
+            self.account_trade_groups[CONST.ALL_ACCOUNTS] = trade_groups
 
     def evaluate_conditions(self, value, conditions):
         for cond in conditions:
