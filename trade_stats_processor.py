@@ -286,6 +286,7 @@ class TradeStatsProcessor:
         win_max_points = get_max(win_points)
         loss_avg_points = get_average(loss_points)
         win_avg_points = get_average(win_points)
+        total_points = get_sum(win_points) + get_sum(loss_points)
 
         directional_bias = ""
         long_bias_percentage = 0 if completed_trades == 0 else (total_long_trades / completed_trades) * 100
@@ -367,6 +368,7 @@ class TradeStatsProcessor:
         max_duration_color = (ConcernLevel.WARNING if win_max_secs < loss_max_secs else ConcernLevel.DEFAULT).get_color()
         intertrade_time_avg_color = (ConcernLevel.WARNING if time_between_trades_avg_secs < timedelta(seconds=60) else ConcernLevel.DEFAULT).get_color()
         win_scaled_count_color = (ConcernLevel.OK if win_scaled_count >= 2 else ConcernLevel.DEFAULT).get_color()
+        total_points_color = (ConcernLevel.OK if total_points > 0 else ConcernLevel.WARNING).get_color()
 
         open_entry_time_i = entry_time.strftime(CONST.DAY_TIME_FORMAT) if position_size != 0 else ''
         open_entry_duration = my_utils.calculate_mins(open_entry_time_i, datetime.now())
@@ -393,6 +395,7 @@ class TradeStatsProcessor:
             {"": [f'']},
             {"Profit Factor": [f'{profit_factor:.01f}', f'{profitfactor_color}']},
             {"Profit Factor L/S": [f'{long_profit_factor:.1f} / {short_profit_factor:.1f}']},
+            {"Total Points": [f'{total_points:.02f}', total_points_color]},
             {MetricNames.GAINS_LOSSES: [f'{int(total_gains):+,} / {int(total_losses):+,}']},
             {"Profit/Loss": [f'{int(total_profit_or_loss):+,}', f'{pnl_color}']},
             {"Drawdown": [f'{int(current_drawdown):+,}', f'{drawdown_color}']},
