@@ -40,22 +40,23 @@ class TradeStatsProcessor:
         account_names.add(CONST.ALL_ACCOUNTS)
         self.account_names_loaded = sorted(list(account_names))
         
-    def get_fills(self, file_paths, contract_symbol):
+    def get_fills(self, file_paths):
         unique_trades_dict = {}
         for file_path in file_paths:
-            pattern = rf'OrderDirectory::orderFilled\(\) order: ID: (\S+) (\S+) {contract_symbol}\.CME.*(Filled BUY|Filled SELL).*Qty:(\d+\.\d+).*Last Fill Time:\s*(\d{{2}}/\d{{2}}/\d{{4}} \d{{1,2}}:\d{{2}} [AP]M).*fill price: (\d+\.\d+)'
+            pattern = rf'OrderDirectory::orderFilled\(\) order: ID: (\S+) (\S+) (\S+)\.CME.*(Filled BUY|Filled SELL).*Qty:(\d+\.\d+).*Last Fill Time:\s*(\d{{2}}/\d{{2}}/\d{{4}} \d{{1,2}}:\d{{2}} [AP]M).*fill price: (\d+\.\d+)'
             with open(file_path, 'r') as file:
                 for line in file:
                     match = re.search(pattern, line)
                     if match:
                         order_id = int(re.sub(r"[^0-9]", "", match.group(1))) #SIM-dd (we need this for ordering since fill_time has no second value and so inaccurate)
                         account_name = match.group(2)
-                        order_type = match.group(3)
-                        quantity = float(match.group(4))
-                        fill_time_str = match.group(5)
-                        fill_price = float(match.group(6))
+                        contract_symbol = match.group(3)
+                        order_type = match.group(4)
+                        quantity = float(match.group(5))
+                        fill_time_str = match.group(6)
+                        fill_price = float(match.group(7))
                         fill_time = datetime.strptime(fill_time_str, "%m/%d/%Y %I:%M %p")
-                        unique_trades_dict[account_name, order_id] = Trade(account_name, order_id, order_type, quantity, fill_price, fill_time)
+                        unique_trades_dict[account_name, order_id] = Trade(account_name, order_id, order_type, contract_symbol, quantity, fill_price, fill_time)
 
         fill_data = list(unique_trades_dict.values())
         if len(fill_data) == 0:
@@ -200,7 +201,8 @@ class TradeStatsProcessor:
             position_size = buy_qty - sell_qty
             if len(grouped_trades) >=2 and position_size == 0: # trade completed
                 completed_trades += 1
-                completed_profit_loss = (sell_total_value - buy_total_value) * self.config.contract_value
+                contract_value = self.config.get_contract_value(fill.contract_symbol)
+                completed_profit_loss = (sell_total_value - buy_total_value) * contract_value
                 total_profit_or_loss += completed_profit_loss
                 is_win = completed_profit_loss > 0
                 total_winning_trades += is_win
@@ -216,7 +218,7 @@ class TradeStatsProcessor:
                     max_realized_profit_time = last_exit_time
                 
                 trade_size = self.calculate_max_quantity(grouped_trades)
-                trade_points = completed_profit_loss / (trade_size * self.config.contract_value)
+                trade_points = completed_profit_loss / (trade_size * contract_value)
                 entries_in_trade_count = len(grouped_trades["Filled BUY" if entry_is_long else "Filled SELL"])
 
                 if not is_win:

@@ -46,7 +46,7 @@ class TradingStatsApp(QApplication):
     def reload_all_data_from_source(self):
         filepaths = self.dialog.get_selected_files()
         self.processor.load_account_names(filepaths)
-        fill_data = self.processor.get_fills(filepaths, config.contract_symbol)
+        fill_data = self.processor.get_fills(filepaths)
         self.existing_fill_count = len(fill_data)
         self.processor.compute_trade_stats(fill_data)
 
@@ -90,7 +90,7 @@ class TradingStatsApp(QApplication):
 
         def refresh_data():
             selected_key = self.dropdown.currentText()
-            fill_data = self.processor.get_fills(self.dialog.get_selected_files(), config.contract_symbol)
+            fill_data = self.processor.get_fills(self.dialog.get_selected_files())
             current_fill_count = len(fill_data)
             if current_fill_count != self.existing_fill_count:
                 self.processor.compute_trade_stats(fill_data)

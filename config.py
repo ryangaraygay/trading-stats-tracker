@@ -12,8 +12,6 @@ class Config:
         self.alert_min_interval_secs_default = int(self.config['alert']['min_interval_secs_default'])
         self.directory_path = self.config['general']['directory_path']
         self.auto_refresh_ms = int(self.config['general']['auto_refresh_ms'])
-        self.contract_symbol = self.config['general']['contract_symbol']
-        self.contract_value = int(self.config['general']['contract_value'])
         self.open_trade_duration_notice_mins = int(self.config['alert']['open_trade_duration_notice_mins'])
         self.open_duration_refresh_ms = int(self.config['alert']['open_duration_refresh_ms'])
         self.block_app_on_critical_alerts = self.get_bool('alert', 'block_app_on_critical_alerts')
@@ -21,6 +19,9 @@ class Config:
         self.print_streak_followtrade_stats = self.get_bool('general', 'print_streak_followtrade_stats')
         self.interval_stats_print = self.get_bool('interval_stats', 'print')
         self.interval_stats_min = self.get_int('interval_stats', 'interval_mins')
+
+        self.symbol_map = dict(self.config.items('futures_contracts'))
+        self.symbol_map = {k: int(v) for k, v in self.symbol_map.items()}
 
         # for section in self.config.sections():
         #     print(f"[{section}]")
@@ -45,6 +46,7 @@ class Config:
         
     def load_config(self, config_base_name="config"):
         config = configparser.ConfigParser()
+        # config.optionxform = str  # preserve case for keys
 
         # use app directory as config directory
         config_dir = os.path.dirname(os.path.abspath(__file__))
@@ -63,6 +65,16 @@ class Config:
             print("Using default configuration.")
 
         return config
+
+    def get_contract_value(self, symbol):
+        if symbol in self.symbol_map:
+            return self.symbol_map[symbol]
+        elif symbol.startswith('ES'):
+            return 50
+        elif symbol.startswith('MES'):
+            return 5
+        else:
+            raise ValueError(f"Unknown contract symbol: {symbol}")
 
     def get_bool(self, section, option, default=False):
         """Safely retrieves a boolean value from the configuration."""

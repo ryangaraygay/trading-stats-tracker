@@ -1,10 +1,9 @@
 TODO
-- analyze logs for time of day win/rate and pnl (start with 5 minute periods)
+- handle when trade group both has MINI and MICRO
+- ALL_ACCOUNT incorrect on April 29 log (it includes only the EXPRESS account trades)
 - increase refresh to 5 seconds (measure CPU, memory etc)
     before that though - check file modified first (check) - test on live market (that it's working as expected)
     then analyze logs first for how much gaps in secs between HH:mm:ss INFO entries (by frequency) - to pick optimal refresh time
-- losing streak history (streak, time, mix, duration)
--   analyse all of losing streak history for insights
 
 improvements
 - clarify config/defaults if secs, ms, mins (be as consistent as possible)
