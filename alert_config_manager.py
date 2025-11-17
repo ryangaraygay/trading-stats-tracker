@@ -48,7 +48,12 @@ class AlertConfigManager:
         config_dir: str = "alert_configs",
         default_profile: str = "default",
     ):
-        self.config_dir = Path(config_dir)
+        base_dir = Path(__file__).resolve().parent
+        config_path = Path(config_dir)
+        if not config_path.is_absolute():
+            config_path = (base_dir / config_path).resolve()
+
+        self.config_dir = config_path
         self.default_profile = default_profile
         self.schema_path = self.config_dir / "schemas" / "alert_config.schema.json"
         self.local_user_dir = self.config_dir / "user"

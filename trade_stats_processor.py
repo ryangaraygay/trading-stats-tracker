@@ -403,6 +403,347 @@ class TradeStatsProcessor:
             else "Join the LONG." if long_bias_percentage <= 10 else directional_bias
         )
 
+        trade_conditions = [
+            {
+                "expr": lambda x: x >= 30,
+                "level": ConcernLevel.CRITICAL,
+                "msg": "Stop. Maximum trades for the day reached.",
+            },
+            {
+                "expr": lambda x: x >= 20 and total_profit_or_loss > 0,
+                "level": ConcernLevel.OK,
+                "msg": "Wind down. You've reached your trade count goal.",
+            },
+            {
+                "expr": lambda x: x >= 20,
+                "level": ConcernLevel.WARNING,
+                "msg": "Wind down. You've reached your trade count goal.",
+            },
+            {
+                "expr": lambda x: x >= 10,
+                "level": ConcernLevel.CAUTION,
+                "msg": "Slow down. Take quality trades only.",
+            },
+        ]
+
+        pnl_conditions = [
+            {
+                "expr": lambda x: x < -2100,
+                "level": ConcernLevel.CRITICAL,
+                "msg": "Stop. Protect your capital.",
+            },
+            {
+                "expr": lambda x: x < -1400,
+                "level": ConcernLevel.WARNING,
+                "msg": "Pause. Reset first, then recover.",
+            },
+            {
+                "expr": lambda x: x < -700,
+                "level": ConcernLevel.CAUTION,
+                "msg": "Slow down. Manage loss by managing risk.",
+            },
+            {
+                "expr": lambda x: x >= 1000,
+                "level": ConcernLevel.OK,
+                "msg": "Wind down. Protect gains.",
+            },
+        ]
+
+        winrate_conditions = [
+            {
+                "expr": lambda x: x <= 25
+                and profit_factor < 1.0
+                and completed_trades >= 10,
+                "level": ConcernLevel.WARNING,
+                "msg": "Reset. Win Rate very low.",
+            },
+            {
+                "expr": lambda x: x <= 40
+                and profit_factor < 1.5
+                and completed_trades >= 5,
+                "level": ConcernLevel.CAUTION,
+                "msg": "Slow down. Win Rate low.",
+            },
+        ]
+
+        profitfactor_conditions = [
+            {
+                "expr": lambda x: x < 1.0 and completed_trades >= 10,
+                "level": ConcernLevel.WARNING,
+                "msg": "Reset. Profit Factor very low.",
+            },
+            {
+                "expr": lambda x: x < 1.5 and completed_trades >= 5,
+                "level": ConcernLevel.CAUTION,
+                "msg": "Slow down. Profit Factor low.",
+            },
+            {"expr": lambda x: x >= 1.5, "level": ConcernLevel.OK, "msg": ""},
+        ]
+
+        losingstreak_conditions = [
+            {
+                "expr": lambda x: x <= -7,
+                "level": ConcernLevel.CRITICAL,
+                "msg": "Stop Now. Protect the version of YOU that will trade well tomorrow.",
+            },
+            {
+                "expr": lambda x: x <= -4,
+                "level": ConcernLevel.WARNING,
+                "msg": "Stop. Follow Reset plan.",
+            },
+            {
+                "expr": lambda x: x <= -2,
+                "level": ConcernLevel.CAUTION,
+                "msg": f"Slow down. Consecutive losses. {streak_tracker.get_extra_msg()}",
+            },
+        ]
+
+        loss_max_size_conditions = [
+            {
+                "expr": lambda x: x >= 10,
+                "level": ConcernLevel.WARNING,
+                "msg": "Reset. Size down.",
+            },
+            {
+                "expr": lambda x: x >= 6,
+                "level": ConcernLevel.CAUTION,
+                "msg": "Size down.",
+            },
+            {
+                "expr": lambda x: x >= 4
+                and profit_factor < 1.0
+                and completed_trades >= 3,
+                "level": ConcernLevel.CAUTION,
+                "msg": "Size down.",
+            },
+        ]
+
+        loss_scaled_count_conditions = [
+            {
+                "expr": lambda x: x >= 5,
+                "level": ConcernLevel.WARNING,
+                "msg": "Reset. Scale up winners only.",
+            },
+            {
+                "expr": lambda x: x >= 3,
+                "level": ConcernLevel.CAUTION,
+                "msg": "Scale up winners only.",
+            },
+        ]
+
+        drawdown_conditions = [
+            {
+                "expr": lambda x: x < -3000,
+                "level": ConcernLevel.CRITICAL,
+                "msg": "Stop Now. Maximum drawdown.",
+            },
+            {
+                "expr": lambda x: x < -2000,
+                "level": ConcernLevel.WARNING,
+                "msg": "Reset. Large drawdown.",
+            },
+            {
+                "expr": lambda x: x < -1000,
+                "level": ConcernLevel.CAUTION,
+                "msg": "Slow down. Notable drawdown.",
+            },
+        ]
+
+        winrate_color, _, _, _ = self.evaluate_conditions(win_rate, winrate_conditions)
+        overtrade_color, _, _, _ = self.evaluate_conditions(
+            completed_trades, trade_conditions
+        )
+        pnl_color, _, _, _ = self.evaluate_conditions(
+            total_profit_or_loss, pnl_conditions
+        )
+        profitfactor_color, _, _, _ = self.evaluate_conditions(
+            profit_factor, profitfactor_conditions
+        )
+        losing_streak_color, _, _, _ = self.evaluate_conditions(
+            streak_tracker.streak, losingstreak_conditions
+        )
+        loss_max_size_color, _, _, _ = self.evaluate_conditions(
+            loss_max_size, loss_max_size_conditions
+        )
+        loss_scaled_count_color, _, _, _ = self.evaluate_conditions(
+            loss_scaled_count, loss_scaled_count_conditions
+        )
+        drawdown_color, _, _, _ = self.evaluate_conditions(
+            current_drawdown, drawdown_conditions
+        )
+
+        open_size_color = (
+            ConcernLevel.CAUTION if abs(position_size) >= 3 else ConcernLevel.DEFAULT
+        ).get_color()
+        avg_duration_color = (
+            ConcernLevel.WARNING
+            if win_avg_secs < loss_avg_secs
+            else ConcernLevel.DEFAULT
+        ).get_color()
+        max_duration_color = (
+            ConcernLevel.WARNING
+            if win_max_secs < loss_max_secs
+            else ConcernLevel.DEFAULT
+        ).get_color()
+        intertrade_time_avg_color = (
+            ConcernLevel.WARNING
+            if time_between_trades_avg_secs < timedelta(seconds=60)
+            else ConcernLevel.DEFAULT
+        ).get_color()
+        win_scaled_count_color = (
+            ConcernLevel.OK if win_scaled_count >= 2 else ConcernLevel.DEFAULT
+        ).get_color()
+        total_points_color = (
+            ConcernLevel.OK if total_points > 0 else ConcernLevel.WARNING
+        ).get_color()
+
+        open_entry_time_i = (
+            entry_time.strftime(CONST.DAY_TIME_FORMAT) if position_size != 0 else ""
+        )
+        open_entry_duration = my_utils.calculate_mins(open_entry_time_i, datetime.now())
+        open_entry_duration_str = (
+            "" if open_entry_duration == 0 else open_entry_duration
+        )
+
+        avg_orders_per_trade = (
+            0
+            if completed_trades == 0
+            else (total_buys + total_sells) / (completed_trades * 2)
+        )
+
+        peak_profit_time = (
+            max_realized_profit_time.strftime(CONST.DAY_TIME_FORMAT)
+            if max_realized_profit_time != datetime.max
+            else "N/A"
+        )
+        peak_drawdown_time = (
+            max_realized_drawdown_time.strftime(CONST.DAY_TIME_FORMAT)
+            if max_realized_drawdown_time != datetime.max
+            else "N/A"
+        )
+
+        trading_stats = [
+            {MetricNames.TRADES: [f"{completed_trades}", overtrade_color]},
+            {"Win Rate": [f"{win_rate:.0f}%", winrate_color]},
+            {
+                MetricNames.WIN_LOSS: [
+                    f"{int(total_winning_trades)} / {int(total_losing_trades)}"
+                ]
+            },
+            {
+                MetricNames.WIN_RATE_LONG_SHORT: [
+                    f"{long_win_rate:.0f}% / {short_win_rate:.0f}%"
+                ]
+            },
+            {"Bias": [f"{directional_bias}"]},
+            {"Scaled Losses": [f"{int(loss_scaled_count):,}", loss_scaled_count_color]},
+            {"Max Loss Size": [f"{int(loss_max_size)}", loss_max_size_color]},
+            {"": [""]},
+            {
+                "Consecutive W/L": [
+                    f"{streak_tracker.streak:+}",
+                    losing_streak_color,
+                ]
+            },
+            {"Mix": [f"{streak_tracker.get_loss_mix()}"]},
+            {"Duration": [f"{streak_tracker.get_loss_elapsed_time_mins_str()}"]},
+            {
+                "Best/Worst": [
+                    f"{streak_tracker.best_streak:+} / {streak_tracker.worst_streak:+}"
+                ]
+            },
+            {"": [""]},
+            {"Profit Factor": [f"{profit_factor:.01f}", profitfactor_color]},
+            {
+                "Profit Factor L/S": [
+                    f"{long_profit_factor:.1f} / {short_profit_factor:.1f}"
+                ]
+            },
+            {"Total Points": [f"{total_points:.02f}", total_points_color]},
+            {
+                MetricNames.GAINS_LOSSES: [
+                    f"{int(total_gains):+,} / {int(total_losses):+,}"
+                ]
+            },
+            {"Profit/Loss": [f"{int(total_profit_or_loss):+,}", pnl_color]},
+            {"Drawdown": [f"{int(current_drawdown):+,}", drawdown_color]},
+            {
+                "Peak P/L": [
+                    f"{int(max_realized_profit):+,} / {int(max_realized_drawdown):+,}"
+                ]
+            },
+            {MetricNames.PEAK_TIME_PNL: [f"{peak_profit_time} | {peak_drawdown_time}"]},
+            {MetricNames.AVG_GAIN_LOSS: [f"{int(avg_gain):+,} / {int(avg_loss):+,}"]},
+            {"Max Trade P/L": [f"{int(win_max_value):+,} / {int(loss_max_value):+,}"]},
+            {
+                MetricNames.AVG_POINTS: [
+                    f"{int(win_avg_points):+,} / {int(loss_avg_points):+,}"
+                ]
+            },
+            {
+                MetricNames.MAX_POINTS: [
+                    f"{int(win_max_points):+,} / {int(loss_max_points):+,}"
+                ]
+            },
+            {"": [""]},
+            {"Open Size": [f"{int(position_size)}", open_size_color]},
+            {MetricNames.OPEN_DURATION: [f"{open_entry_duration_str}"]},
+            {MetricNames.OPEN_ENTRY: [f"{open_entry_time_i}"]},
+            {
+                MetricNames.FIRST_ENTRY: [
+                    f"{first_entry_time.strftime(CONST.DAY_TIME_FORMAT)}"
+                ]
+            },
+            {
+                MetricNames.LAST_EXIT: [
+                    f"{last_exit_time.strftime(CONST.DAY_TIME_FORMAT)}"
+                ]
+            },
+            {"": [""]},
+            {
+                MetricNames.INTERTRADE_AVG: [
+                    f"{my_utils.format_timedelta(time_between_trades_avg_secs)}",
+                    intertrade_time_avg_color,
+                ]
+            },
+            {
+                MetricNames.INTERTRADE_MAX: [
+                    f"{my_utils.format_timedelta(time_between_trades_max_secs)}"
+                ]
+            },
+            {
+                MetricNames.DURATION_AVG: [
+                    f"{my_utils.format_timedelta(win_avg_secs)} / {my_utils.format_timedelta(loss_avg_secs)}",
+                    avg_duration_color,
+                ]
+            },
+            {
+                MetricNames.DURATION_MAX: [
+                    f"{my_utils.format_timedelta(win_max_secs)} / {my_utils.format_timedelta(loss_max_secs)}",
+                    max_duration_color,
+                ]
+            },
+            {MetricNames.AVG_ORDERS_PER_TRADE: [f"{avg_orders_per_trade:.01f}"]},
+            {MetricNames.ORDERS_LONG_SHORT: [f"{total_buys} / {total_sells}"]},
+            {
+                MetricNames.CONTRACTS_LONG_SHORT: [
+                    f"{total_buy_contracts} / {total_sell_contracts}"
+                ]
+            },
+            {
+                MetricNames.SCALED_WINS: [
+                    f"{int(win_scaled_count):,}",
+                    win_scaled_count_color,
+                ]
+            },
+            {MetricNames.MAX_WIN_SZE: [f"{int(win_max_size)}"]},
+            {
+                MetricNames.LAST_UPDATED: [
+                    f"{datetime.now().strftime(CONST.DAY_TIME_FORMAT)}"
+                ]
+            },
+        ]
+
         alert_context = {
             "completed_trades": completed_trades,
             "total_profit_or_loss": total_profit_or_loss,
