@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schema_version": {"type": "string"},
+    "id": {"type": "string"},
+    "name": {"type": "string"},
+    "description": {"type": "string"},
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "created_by": {"type": "string"},
+        "created_at": {"type": "string", "format": "date-time"},
+        "source": {"type": "string", "enum": ["repo", "user", "session"]}
+      },
+      "required": ["created_by", "created_at", "source"],
+      "additionalProperties": false
+    },
+    "context_fields": {
+      "type": "object",
+      "properties": {
+        "required": {
+          "type": "array",
+          "items": {"type": "string"},
+          "minItems": 1
+        }
+      },
+      "required": ["required"],
+      "additionalProperties": false
+    },
+    "conditions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "group": {"type": "string"},
+          "label": {"type": "string"},
+          "when": {"type": "string"},
+          "primary_field": {"type": "string"},
+          "threshold": {"type": ["number", "integer"]},
+          "operator": {"type": "string"},
+          "additional_conditions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": {"type": "string"},
+                "operator": {"type": "string"},
+                "value": {}
+              },
+              "required": ["field", "operator", "value"],
+              "additionalProperties": false
+            }
+          },
+          "abs_value": {"type": "boolean"},
+          "comparison_field": {"type": "string"},
+          "level": {"type": "string"},
+          "message": {"type": "string"},
+          "extra_message": {"type": "string"},
+          "throttle_secs": {"type": "number"},
+          "enabled": {"type": "boolean"}
+        },
+        "required": ["id", "group", "when", "level"],
+        "additionalProperties": false
+      }
+    },
+    "color_rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "metric": {"type": "string"},
+          "rules": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "when": {"type": "string"},
+                "color": {"type": "string"}
+              },
+              "required": ["when", "color"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["metric", "rules"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["schema_version", "id", "name", "metadata", "context_fields", "conditions"],
+  "additionalProperties": false
+}
