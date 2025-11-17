@@ -119,25 +119,8 @@ class TradeStatsProcessor:
                 self.account_trading_stats[account_name] = trading_stats
 
                 alert_matches = self._evaluate_alerts(alert_context)
-                trading_alerts = []
-                for match in alert_matches:
-                    message = match.get("message", "")
-                    level = match.get("level", ConcernLevel.DEFAULT)
-                    extra = match.get("extra_message", "")
-                    if not message:
-                        continue
-                    alert = AlertMessage(
-                        message,
-                        account_name,
-                        self.config.get_alert_duration(level),
-                        self.config.get_min_interval_secs(level),
-                        level,
-                        extra,
-                    )
-                    trading_alerts.append(alert)
-
-                self.account_trading_alerts[account_name] = sorted(
-                    trading_alerts, key=lambda record: record.level, reverse=True
+                self.account_trading_alerts[account_name] = self._build_alert_messages(
+                    account_name, alert_matches
                 )
 
                 self.account_trade_groups[account_name] = trade_groups
@@ -768,9 +751,14 @@ class TradeStatsProcessor:
         # there are some that are not (e.g. streak) - although they can be handled, choosing to simply for now
         # and just recompute for unfiltered fill data
         if fill_data:
-            trading_stats, _, trade_groups = self.get_stats(fill_data)
+            trading_stats, alert_context, trade_groups = self.get_stats(fill_data)
             self.account_trading_stats[CONST.ALL_ACCOUNTS] = trading_stats
             self.account_trade_groups[CONST.ALL_ACCOUNTS] = trade_groups
+            self.account_trading_alerts[CONST.ALL_ACCOUNTS] = (
+                self._build_alert_messages(
+                    CONST.ALL_ACCOUNTS, self._evaluate_alerts(alert_context)
+                )
+            )
 
     def _evaluate_alerts(self, context: dict):
         if self.alert_config_manager:
@@ -817,6 +805,26 @@ class TradeStatsProcessor:
         except Exception as exc:  # noqa: BLE001
             LOGGER.warning("Failed to format template '%s': %s", template, exc)
             return template
+
+    def _build_alert_messages(self, account_name: str, matches) -> list:
+        alerts = []
+        for match in matches:
+            message = match.get("message", "")
+            level = match.get("level", ConcernLevel.DEFAULT)
+            extra = match.get("extra_message", "")
+            if not message:
+                continue
+            alerts.append(
+                AlertMessage(
+                    message,
+                    account_name,
+                    self.config.get_alert_duration(level),
+                    self.config.get_min_interval_secs(level),
+                    level,
+                    extra,
+                )
+            )
+        return sorted(alerts, key=lambda alert: alert.level, reverse=True)
 
     def _legacy_alerts(self, context: dict):
         completed_trades = context.get("completed_trades", 0)
