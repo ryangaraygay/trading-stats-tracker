@@ -44,7 +44,9 @@ class SessionAlertOverrides:
 
 class AlertConfigManager:
     def __init__(
-        self, config_dir: str = "alert_configs", default_profile: str = "default"
+        self,
+        config_dir: str = "alert_configs",
+        default_profile: str = "default",
     ):
         self.config_dir = Path(config_dir)
         self.default_profile = default_profile
@@ -53,12 +55,14 @@ class AlertConfigManager:
         self.global_user_dir = (
             Path.home() / ".config" / "trading-stats-tracker" / "alert_configs"
         )
+        self.active_profile_file = self.config_dir / "active_config.json"
         self.env = os.environ.get("CONFIG_ENV")
         self.session_overrides = SessionAlertOverrides()
         self.current_profile_name: Optional[str] = None
         self.current_config: Optional[Dict[str, Any]] = None
         self.config_cache: Dict[str, Dict[str, Any]] = {}
         self.schema = self._load_schema()
+        self.active_profile_override = self._read_active_profile()
 
     def _load_schema(self) -> Dict[str, Any]:
         try:
@@ -67,6 +71,17 @@ class AlertConfigManager:
         except FileNotFoundError:
             LOGGER.warning("Alert config schema not found at %s", self.schema_path)
             return {}
+
+    def _read_active_profile(self) -> Optional[str]:
+        if not self.active_profile_file.exists():
+            return None
+        try:
+            with open(self.active_profile_file, "r", encoding="utf-8") as active_file:
+                payload = json.load(active_file)
+            return payload.get("name")
+        except Exception as exc:
+            LOGGER.warning("Failed to read active profile override: %s", exc)
+            return None
 
     def _validate(self, payload: Dict[str, Any]) -> bool:
         if not self.schema:
@@ -155,8 +170,12 @@ class AlertConfigManager:
         return None
 
     def load_config(self, profile_name: Optional[str] = None) -> Dict[str, Any]:
+        env_override = os.environ.get("ALERT_CONFIG_NAME")
         resolved_name = (
-            profile_name or os.environ.get("ALERT_CONFIG_NAME") or self.default_profile
+            profile_name
+            or env_override
+            or self._read_active_profile()
+            or self.default_profile
         )
         if resolved_name in self.config_cache:
             config = self.config_cache[resolved_name]
@@ -195,13 +214,10 @@ class AlertConfigManager:
         directories = [
             ("local_user", self.local_user_dir),
             ("global_user", self.global_user_dir),
-            (
-                ("env_presets", self.config_dir / "presets" / self.env)
-                if self.env
-                else None
-            ),
-            ("repo_presets", self.config_dir / "presets"),
         ]
+        if self.env:
+            directories.append(("env_presets", self.config_dir / "presets" / self.env))
+        directories.append(("repo_presets", self.config_dir / "presets"))
 
         for entry in directories:
             if entry is None:
@@ -222,6 +238,32 @@ class AlertConfigManager:
                     }
                 )
         return results
+
+    def get_profile_path(self, profile_name: str) -> Optional[Path]:
+        return self._find_profile_path(profile_name)
+
+    def set_active_profile(self, profile_name: str) -> None:
+        if not self._find_profile_path(profile_name):
+            raise FileNotFoundError(f"Alert profile '{profile_name}' not found")
+        self.active_profile_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(self.active_profile_file, "w", encoding="utf-8") as handle:
+            json.dump({"name": profile_name}, handle)
+        self.active_profile_override = profile_name
+
+    def clear_active_profile(self) -> None:
+        if self.active_profile_file.exists():
+            self.active_profile_file.unlink()
+        self.active_profile_override = None
+
+    def get_active_profile_name(self) -> str:
+        env_override = os.environ.get("ALERT_CONFIG_NAME")
+        active_override = self._read_active_profile()
+        return (
+            self.current_profile_name
+            or env_override
+            or active_override
+            or self.default_profile
+        )
 
     def create_config_copy(self, source_name: str, target_name: str) -> Path:
         source_path = self._find_profile_path(source_name)

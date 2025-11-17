@@ -21,3 +21,6 @@ test_resource_usage:
 	CONFIG_ENV=local scalene app.py
 
 all: #install lint test
+
+validate_alerts:
+	python manage_alert_configs.py validate
