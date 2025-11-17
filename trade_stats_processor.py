@@ -777,10 +777,46 @@ class TradeStatsProcessor:
             try:
                 config = self.alert_config_manager.get_active_config()
                 evaluator = ConditionEvaluator(config)
-                return evaluator.evaluate(context)
+                template_context = self._build_template_context(context)
+                formatted_results = []
+                for match in evaluator.evaluate(context):
+                    formatted_results.append(
+                        {
+                            **match,
+                            "message": self._format_template(
+                                match.get("message", ""), template_context
+                            ),
+                            "extra_message": self._format_template(
+                                match.get("extra_message", ""), template_context
+                            ),
+                        }
+                    )
+                return formatted_results
             except Exception as exc:
                 LOGGER.warning("Custom alert evaluation failed: %s", exc)
         return self._legacy_alerts(context)
+
+    def _build_template_context(self, context: dict) -> dict:
+        safe_context = {}
+        for key, value in context.items():
+            if isinstance(value, (int, float, str)):
+                safe_context[key] = value
+        return safe_context
+
+    def _format_template(self, template: str, context: dict) -> str:
+        if not template:
+            return template
+
+        class SafeDict(dict):
+            def __missing__(self, key):
+                return "{" + key + "}"
+
+        safe_map = SafeDict(context)
+        try:
+            return template.format_map(safe_map)
+        except Exception as exc:  # noqa: BLE001
+            LOGGER.warning("Failed to format template '%s': %s", template, exc)
+            return template
 
     def _legacy_alerts(self, context: dict):
         completed_trades = context.get("completed_trades", 0)
