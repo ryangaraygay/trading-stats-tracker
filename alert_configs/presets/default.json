@@ -114,6 +114,15 @@
       "enabled": true
     },
     {
+      "id": "losing-streak-caution",
+      "group": "losing_streak",
+      "label": "Consecutive Losses",
+      "when": "streak_tracker.streak <= -2",
+      "level": "CAUTION",
+      "message": "Slow down. Consecutive losses.",
+      "enabled": true
+    },
+    {
       "id": "loss-max-size-warning",
       "group": "loss_max_size",
       "label": "Max Loss Size Warning",
