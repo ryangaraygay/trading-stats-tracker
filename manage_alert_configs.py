@@ -73,7 +73,7 @@ def cmd_export(args: argparse.Namespace) -> int:
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy(default_path, output_path)
-    print(f"Exported default preset to {output_path}")
+    print(f"Exported hardcoded preset to {output_path}")
     return 0
 
 

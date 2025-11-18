@@ -84,31 +84,88 @@ class TestConditionEvaluator:
         assert test_group_results[0]["id"] == "test_critical"
 
     def test_disabled_conditions(self):
-        """Test that disabled conditions are skipped."""
-        evaluator = ConditionEvaluator(self.test_config)
-
-        # Fix the test config - enabled should be boolean, not string
-        test_config_fixed = {
+        """Test that disabled conditions are skipped and edge cases are handled."""
+        test_config_with_various_enabled_states = {
             "conditions": [
                 {
-                    "id": "test_disabled",
-                    "group": "test_group",
+                    "id": "test_enabled",
+                    "group": "test_group1",
                     "when": "test_field >= 1",
+                    "level": "WARNING",
+                    "message": "Enabled message",
+                    "enabled": True
+                },
+                {
+                    "id": "test_disabled_boolean",
+                    "group": "test_group2",
+                    "when": "test_field >= 2",
                     "level": "CAUTION",
-                    "message": "Disabled message",
-                    "enabled": False  # Boolean, not string
+                    "message": "Disabled boolean message",
+                    "enabled": False
+                },
+                {
+                    "id": "test_enabled_missing",
+                    "group": "test_group3",
+                    "when": "test_field >= 3",
+                    "level": "OK",
+                    "message": "Missing enabled field",
+                    # Note: no "enabled" field - should default to enabled
+                },
+                {
+                    "id": "test_enabled_none",
+                    "group": "test_group4",
+                    "when": "test_field >= 4",
+                    "level": "CRITICAL",
+                    "message": "Enabled None",
+                    "enabled": None
+                },
+                {
+                    "id": "test_enabled_string",
+                    "group": "test_group5",
+                    "when": "test_field >= 5",
+                    "level": "WARNING",
+                    "message": "Enabled string",
+                    "enabled": "false"
+                },
+                {
+                    "id": "test_enabled_number",
+                    "group": "test_group6",
+                    "when": "test_field >= 6",
+                    "level": "CAUTION",
+                    "message": "Enabled number",
+                    "enabled": 0
                 }
             ]
         }
 
-        evaluator = ConditionEvaluator(test_config_fixed)
+        evaluator = ConditionEvaluator(test_config_with_various_enabled_states)
 
-        context = {"test_field": 15}  # Would match disabled condition
+        # Test with high value that would match all conditions
+        context = {"test_field": 10}
         results = evaluator.evaluate(context)
 
-        # Should not include disabled condition
-        disabled_results = [r for r in results if r["id"] == "test_disabled"]
-        assert len(disabled_results) == 0
+        # Should only match enabled conditions
+        # enabled=True: test_enabled (included)
+        # enabled=False: test_disabled_boolean (excluded)
+        # enabled missing: test_enabled_missing (included - defaults to True)
+        # enabled=None: test_enabled_none (excluded - falsy)
+        # enabled="false": test_enabled_string (included - non-empty string is truthy)
+        # enabled=0: test_enabled_number (excluded - falsy)
+
+        result_ids = [r["id"] for r in results]
+
+        # Should include: test_enabled, test_enabled_missing, test_enabled_string
+        assert "test_enabled" in result_ids
+        assert "test_enabled_missing" in result_ids
+        assert "test_enabled_string" in result_ids
+
+        # Should NOT include disabled conditions
+        assert "test_disabled_boolean" not in result_ids
+        assert "test_enabled_none" not in result_ids
+        assert "test_enabled_number" not in result_ids
+
+        # Should have exactly 3 results
+        assert len(results) == 3
 
     def test_multiple_groups(self):
         """Test evaluation across multiple groups."""

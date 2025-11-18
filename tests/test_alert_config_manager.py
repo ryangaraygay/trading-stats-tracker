@@ -17,6 +17,11 @@ class TestAlertConfigManager:
 
     def setup_method(self):
         """Set up test fixtures."""
+        # Clean up any existing active_config.json files first
+        active_config_path = Path.home() / ".config" / "trading-stats-tracker" / "alert_configs" / "active_config.json"
+        if active_config_path.exists():
+            active_config_path.unlink()
+
         self.temp_dir = tempfile.mkdtemp()
         self.config_dir = Path(self.temp_dir)
 
