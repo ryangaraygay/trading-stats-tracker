@@ -30,15 +30,39 @@ class TradeStatsProcessor:
         self.streak_stopper_list = []
         self.streak_continuer_list = []
         self.account_trade_groups = {}
+        self.alert_profile_status = {
+            "mode": "fallback",
+            "profile": "legacy",
+            "source": "hardcoded",
+            "path": None,
+            "error": None,
+        }
         self.alert_config_manager = self._initialize_alert_config_manager()
 
     def _initialize_alert_config_manager(self):
         try:
             manager = AlertConfigManager()
-            manager.load_config()
+            config = manager.load_config()
+            active_profile = manager.get_active_profile_name()
+            profile_path = manager.get_profile_path(active_profile)
+            metadata = config.get("metadata", {})
+            self.alert_profile_status = {
+                "mode": "json",
+                "profile": active_profile,
+                "source": metadata.get("source", "unknown"),
+                "path": str(profile_path) if profile_path else None,
+                "error": None,
+            }
             return manager
         except Exception as exc:
             LOGGER.warning("Alert config manager unavailable: %s", exc)
+            self.alert_profile_status = {
+                "mode": "fallback",
+                "profile": "legacy",
+                "source": "hardcoded",
+                "path": None,
+                "error": str(exc),
+            }
             return None
 
     def load_account_names(self, file_paths):
@@ -825,6 +849,9 @@ class TradeStatsProcessor:
                 )
             )
         return sorted(alerts, key=lambda alert: alert.level, reverse=True)
+
+    def get_alert_profile_status(self):
+        return self.alert_profile_status
 
     def _legacy_alerts(self, context: dict):
         completed_trades = context.get("completed_trades", 0)
