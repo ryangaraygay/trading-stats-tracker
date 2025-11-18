@@ -95,7 +95,7 @@ class TradingStatsApp(QApplication):
 
         self.profile_status_label = QLabel("")
         status_font = QFont(font_name)
-        status_font.setPointSize(21)
+        status_font.setPointSize(20)
         self.profile_status_label.setFont(status_font)
         self.profile_status_label.setAlignment(
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
@@ -424,14 +424,12 @@ class TradingStatsApp(QApplication):
         if not self.profile_status_label:
             return
         status = self.processor.get_alert_profile_status()
-        if status.get("mode") == "json":
-            text = f"Profile: {status.get('profile', 'unknown')} ({status.get('source', 'unknown')})"
-            style = "background-color: rgba(76, 175, 80, 0.6); color: black;"
-        else:
+        text = f"Profile: {status.get('profile', 'unknown')} ({status.get('source', 'unknown')})"
+        if status.get("mode") != "json":
             text = "Profile: legacy (fallback)"
             if status.get("error"):
                 text += " – see logs"
-            style = "background-color: rgba(255, 152, 0, 0.85); color: black;"
+        style = "color: white;"
 
         tooltip_lines = []
         if status.get("path"):
@@ -440,9 +438,7 @@ class TradingStatsApp(QApplication):
             tooltip_lines.append(status["error"])
         self.profile_status_label.setToolTip("\n".join(tooltip_lines))
         self.profile_status_label.setText(text)
-        self.profile_status_label.setStyleSheet(
-            f"border-radius: 10px; padding: 4px 10px; {style}"
-        )
+        self.profile_status_label.setStyleSheet(style)
 
     def update_minutes(self):
         minutes = my_utils.calculate_mins(self.open_entry_time_str, datetime.now())
