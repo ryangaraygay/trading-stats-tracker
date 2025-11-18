@@ -40,6 +40,7 @@ class TradingStatsApp(QApplication):
         self.open_entry_time_str = ""
         self.open_duration_label = None
         self.existing_fill_count = 0
+        self.profile_status_label = None
 
         self.dialog = LogFileSelector(
             config.directory_path, CONST.LOG_FILENAME_PATTERN, self.window
@@ -92,10 +93,20 @@ class TradingStatsApp(QApplication):
         self.dropdown.setStyleSheet("background-color: gray; color: black;")
         layout.addWidget(self.dropdown, 0, 0, 1, 2)
 
+        self.profile_status_label = QLabel("")
+        status_font = QFont(font_name)
+        status_font.setPointSize(21)
+        self.profile_status_label.setFont(status_font)
+        self.profile_status_label.setAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
+        layout.addWidget(self.profile_status_label, 1, 0, 1, 2)
+        layout.setRowMinimumHeight(1, 40)
+
         spacer_height = 30
         dummy_label = QLabel("")
-        layout.addWidget(dummy_label, 1, 0, 1, 2)
-        layout.setRowMinimumHeight(1, spacer_height)
+        layout.addWidget(dummy_label, 2, 0, 1, 2)
+        layout.setRowMinimumHeight(2, spacer_height)
 
         extra_metrics_checkbox = QCheckBox("Extra Metrics")
         extra_metrics_checkbox.setChecked(False)
@@ -134,6 +145,7 @@ class TradingStatsApp(QApplication):
                     and item.widget()
                     not in (
                         self.dropdown,
+                        self.profile_status_label,  # never delete the status label; PyQt references break otherwise
                         dummy_label,
                         extra_metrics_checkbox,
                         refresh_button,
@@ -266,6 +278,7 @@ class TradingStatsApp(QApplication):
 
         self.dropdown.currentTextChanged.connect(dropdown_changed)
         self.dropdown.setCurrentText(CONST.SELECT_ACCOUNT)
+        self.update_profile_status_label()
 
         def checkbox_changed(state):
             selected_key = self.dropdown.currentText()
@@ -292,6 +305,7 @@ class TradingStatsApp(QApplication):
                     self.dropdown.setCurrentText(CONST.SELECT_ACCOUNT)
                     dropdown_changed(CONST.SELECT_ACCOUNT)
             self.dropdown.currentTextChanged.connect(dropdown_changed)
+            self.update_profile_status_label()
 
         refresh_all_button.clicked.connect(refresh_all)
 
@@ -405,6 +419,30 @@ class TradingStatsApp(QApplication):
         self.timer = QTimer()
         self.timer.timeout.connect(refresh_data)
         self.timer.start(config.auto_refresh_ms)
+
+    def update_profile_status_label(self):
+        if not self.profile_status_label:
+            return
+        status = self.processor.get_alert_profile_status()
+        if status.get("mode") == "json":
+            text = f"Profile: {status.get('profile', 'unknown')} ({status.get('source', 'unknown')})"
+            style = "background-color: rgba(76, 175, 80, 0.6); color: black;"
+        else:
+            text = "Profile: legacy (fallback)"
+            if status.get("error"):
+                text += " – see logs"
+            style = "background-color: rgba(255, 152, 0, 0.85); color: black;"
+
+        tooltip_lines = []
+        if status.get("path"):
+            tooltip_lines.append(status["path"])
+        if status.get("error"):
+            tooltip_lines.append(status["error"])
+        self.profile_status_label.setToolTip("\n".join(tooltip_lines))
+        self.profile_status_label.setText(text)
+        self.profile_status_label.setStyleSheet(
+            f"border-radius: 10px; padding: 4px 10px; {style}"
+        )
 
     def update_minutes(self):
         minutes = my_utils.calculate_mins(self.open_entry_time_str, datetime.now())
