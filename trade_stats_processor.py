@@ -751,6 +751,14 @@ class TradeStatsProcessor:
             },
         ]
 
+        win_avg_secs_seconds = win_avg_secs.total_seconds()
+        loss_avg_secs_seconds = loss_avg_secs.total_seconds()
+        duration_ratio = (
+            win_avg_secs_seconds / loss_avg_secs_seconds
+            if loss_avg_secs_seconds > 0
+            else float("inf")
+        )
+
         alert_context = {
             "completed_trades": completed_trades,
             "total_profit_or_loss": total_profit_or_loss,
@@ -764,7 +772,9 @@ class TradeStatsProcessor:
             "loss_scaled_count": loss_scaled_count,
             "current_drawdown": current_drawdown,
             "open_position_size": abs(total_buy_contracts - total_sell_contracts),
-            "win_avg_secs_vs_loss_avg_secs": win_avg_secs.total_seconds(),
+            "win_avg_secs_seconds": win_avg_secs_seconds,
+            "loss_avg_secs_seconds": loss_avg_secs_seconds,
+            "win_avg_secs_vs_loss_avg_secs": duration_ratio,
         }
 
         return trading_stats, alert_context, trade_groups

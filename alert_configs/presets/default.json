@@ -20,6 +20,8 @@
       "current_drawdown",
       "loss_scaled_count",
       "open_position_size",
+      "win_avg_secs_seconds",
+      "loss_avg_secs_seconds",
       "win_avg_secs_vs_loss_avg_secs"
     ]
   },
@@ -172,7 +174,7 @@
       "id": "avg-duration-warning",
       "group": "simple_conditions",
       "label": "Short Winning Trade Duration",
-      "when": "win_avg_secs_vs_loss_avg_secs < 60",
+      "when": "loss_avg_secs_seconds > 0 and win_avg_secs_seconds > 0 and win_avg_secs_seconds < loss_avg_secs_seconds",
       "level": "WARNING",
       "message": "",
       "enabled": true

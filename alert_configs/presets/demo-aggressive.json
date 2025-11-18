@@ -20,6 +20,8 @@
       "current_drawdown",
       "loss_scaled_count",
       "open_position_size",
+      "win_avg_secs_seconds",
+      "loss_avg_secs_seconds",
       "win_avg_secs_vs_loss_avg_secs"
     ]
   },

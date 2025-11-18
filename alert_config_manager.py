@@ -57,10 +57,8 @@ class AlertConfigManager:
         self.default_profile = default_profile
         self.schema_path = self.config_dir / "schemas" / "alert_config.schema.json"
         self.local_user_dir = self.config_dir / "user"
-        self.global_user_dir = (
-            Path.home() / ".config" / "trading-stats-tracker" / "alert_configs"
-        )
-        self.active_profile_file = self.config_dir / "active_config.json"
+        self.global_user_dir = Path.home() / ".config" / "trading-stats-tracker" / "alert_configs"
+        self.active_profile_file = self.global_user_dir / "active_config.json"
         self.env = os.environ.get("CONFIG_ENV")
         self.session_overrides = SessionAlertOverrides()
         self.current_profile_name: Optional[str] = None
@@ -246,6 +244,17 @@ class AlertConfigManager:
 
     def get_profile_path(self, profile_name: str) -> Optional[Path]:
         return self._find_profile_path(profile_name)
+
+    def validate_profile(self, profile_name: str) -> Dict[str, Any]:
+        """Load & validate profile without mutating manager state."""
+        path = self._find_profile_path(profile_name)
+        if not path:
+            raise FileNotFoundError(f"Alert profile '{profile_name}' not found")
+        with open(path, "r", encoding="utf-8") as config_file:
+            payload = json.load(config_file)
+        if not self._validate(payload):
+            raise ValueError(f"Alert profile '{profile_name}' failed schema validation")
+        return payload
 
     def set_active_profile(self, profile_name: str) -> None:
         if not self._find_profile_path(profile_name):

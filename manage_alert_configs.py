@@ -56,7 +56,7 @@ def cmd_validate(args: argparse.Namespace) -> int:
     failures = []
     for name in names:
         try:
-            manager.load_config(name)
+            manager.validate_profile(name)
             print(f"Validated {name}")
         except Exception as exc:
             print(f"Validation failed for {name}: {exc}")

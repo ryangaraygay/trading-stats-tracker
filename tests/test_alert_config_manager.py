@@ -235,6 +235,16 @@ class TestAlertConfigManager:
         assert condition["when"] == "test_field >= 20"
         assert condition["level"] == "CRITICAL"
 
+    def test_validate_profile_does_not_mutate_state(self):
+        """validate_profile loads config without changing current_profile_name."""
+        manager = AlertConfigManager(config_dir=str(self.config_dir))
+        manager.current_profile_name = "original"
+
+        payload = manager.validate_profile("test")
+
+        assert payload["id"] == "test_config"
+        assert manager.current_profile_name == "original"
+
 
 class TestSessionAlertOverrides:
     """Test SessionAlertOverrides functionality."""
