@@ -631,20 +631,14 @@ class TradeStatsProcessor:
 
         trading_stats = [
             {MetricNames.TRADES: [f"{completed_trades}", overtrade_color]},
+            {"Bias": [f"{directional_bias}"]},
+            {"": [""]},
             {"Win Rate": [f"{win_rate:.0f}%", winrate_color]},
-            {
-                MetricNames.WIN_LOSS: [
-                    f"{int(total_winning_trades)} / {int(total_losing_trades)}"
-                ]
-            },
             {
                 MetricNames.WIN_RATE_LONG_SHORT: [
                     f"{long_win_rate:.0f}% / {short_win_rate:.0f}%"
                 ]
             },
-            {"Bias": [f"{directional_bias}"]},
-            {"Scaled Losses": [f"{int(loss_scaled_count):,}", loss_scaled_count_color]},
-            {"Max Loss Size": [f"{int(loss_max_size)}", loss_max_size_color]},
             {"": [""]},
             {
                 "Consecutive W/L": [
@@ -655,7 +649,7 @@ class TradeStatsProcessor:
             {"Mix": [f"{streak_tracker.get_loss_mix()}"]},
             {"Duration": [f"{streak_tracker.get_loss_elapsed_time_mins_str()}"]},
             {
-                "Best/Worst": [
+                MetricNames.BEST_WORST: [
                     f"{streak_tracker.best_streak:+} / {streak_tracker.worst_streak:+}"
                 ]
             },
@@ -666,6 +660,7 @@ class TradeStatsProcessor:
                     f"{long_profit_factor:.1f} / {short_profit_factor:.1f}"
                 ]
             },
+            {"": [""]},
             {"Total Points": [f"{total_points:.02f}", total_points_color]},
             {
                 MetricNames.GAINS_LOSSES: [
@@ -675,13 +670,13 @@ class TradeStatsProcessor:
             {"Profit/Loss": [f"{int(total_profit_or_loss):+,}", pnl_color]},
             {"Drawdown": [f"{int(current_drawdown):+,}", drawdown_color]},
             {
-                "Peak P/L": [
+                MetricNames.PEAK_PL: [
                     f"{int(max_realized_profit):+,} / {int(max_realized_drawdown):+,}"
                 ]
             },
             {MetricNames.PEAK_TIME_PNL: [f"{peak_profit_time} | {peak_drawdown_time}"]},
             {MetricNames.AVG_GAIN_LOSS: [f"{int(avg_gain):+,} / {int(avg_loss):+,}"]},
-            {"Max Trade P/L": [f"{int(win_max_value):+,} / {int(loss_max_value):+,}"]},
+            {MetricNames.MAX_TRADE_PL: [f"{int(win_max_value):+,} / {int(loss_max_value):+,}"]},
             {
                 MetricNames.AVG_POINTS: [
                     f"{int(win_avg_points):+,} / {int(loss_avg_points):+,}"
@@ -690,6 +685,19 @@ class TradeStatsProcessor:
             {
                 MetricNames.MAX_POINTS: [
                     f"{int(win_max_points):+,} / {int(loss_max_points):+,}"
+                ]
+            },
+            {"": [""]},
+            {
+                MetricNames.SCALED_LOSSES: [
+                    f"{int(loss_scaled_count):,}",
+                    loss_scaled_count_color,
+                ]
+            },
+            {
+                MetricNames.MAX_LOSS_SIZE: [
+                    f"{int(loss_max_size)}",
+                    loss_max_size_color,
                 ]
             },
             {"": [""]},

@@ -1,8 +1,8 @@
 {
   "schema_version": "1.0",
-  "id": "default",
-  "name": "Default Risk Controls",
-  "description": "Baseline guardrails for ES scalping",
+  "id": "default_with_scaling",
+  "name": "Default Risk Controls (With Scaling)",
+  "description": "Baseline guardrails including scaling/sizing alerts",
   "metadata": {
     "created_by": "ryan",
     "created_at": "2024-06-01T00:00:00Z",
@@ -133,14 +133,65 @@
       "message": "Stop now. Maximum drawdown.",
       "extra_message": "{current_drawdown:+,}",
       "enabled": true
+    },
+    {
+      "id": "loss-max-size-warning",
+      "group": "loss_max_size",
+      "label": "Max Loss Size Warning",
+      "when": "loss_max_size >= 10",
+      "level": "WARNING",
+      "message": "Reset. Size down.",
+      "enabled": true
+    },
+    {
+      "id": "loss-max-size-caution",
+      "group": "loss_max_size",
+      "label": "Max Loss Size Caution",
+      "when": "loss_max_size >= 6",
+      "level": "CAUTION",
+      "message": "Size down.",
+      "enabled": true
+    },
+    {
+      "id": "loss-scaled-count-warning",
+      "group": "loss_scaled_count",
+      "label": "Losses Involving Multiple Entries",
+      "when": "loss_scaled_count >= 5",
+      "level": "WARNING",
+      "message": "Reset. Scale up winners only.",
+      "enabled": true
+    },
+    {
+      "id": "open-position-size-caution",
+      "group": "simple_conditions",
+      "label": "Large Open Position",
+      "when": "abs(open_position_size) >= 3",
+      "level": "CAUTION",
+      "message": "",
+      "enabled": true
+    },
+    {
+      "id": "avg-duration-warning",
+      "group": "simple_conditions",
+      "label": "Short Winning Trade Duration",
+      "when": "loss_avg_secs_seconds > 0 and win_avg_secs_seconds > 0 and win_avg_secs_seconds < loss_avg_secs_seconds",
+      "level": "WARNING",
+      "message": "",
+      "enabled": true
     }
   ],
   "color_rules": [
     {
       "metric": "win_rate",
       "rules": [
-        { "when": "win_rate <= 25", "color": "#b00020" },
-        { "when": "win_rate <= 40", "color": "#f9a825" }
+        {
+          "when": "win_rate <= 25",
+          "color": "#b00020"
+        },
+        {
+          "when": "win_rate <= 40",
+          "color": "#f9a825"
+        }
       ]
     }
   ]
