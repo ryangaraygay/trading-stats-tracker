@@ -74,3 +74,4 @@ python -m pytest -vv test_filename.py::test_function_name
 - Use `scalene` profiler for performance analysis
 - Minimize GUI refresh operations
 - Cache computed data when possible (see `config.py:23-24`)
+- GUI note: when refreshing layouts in `app.py`, do NOT delete `self.profile_status_label` (or other persistent widgets). Removing it breaks PyQt references and causes “wrapped C/C++ object … has been deleted” runtime errors.

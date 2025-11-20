@@ -12,15 +12,25 @@ from trade_group_display import TradeGroupDisplay
 
 from collections import Counter
 from datetime import datetime
-from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QGridLayout, QPushButton, QComboBox, QCheckBox, QDialog
+from PyQt6.QtWidgets import (
+    QApplication,
+    QWidget,
+    QLabel,
+    QGridLayout,
+    QPushButton,
+    QComboBox,
+    QCheckBox,
+    QDialog,
+)
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont
 from log_file_selector import LogFileSelector
 
+
 class TradingStatsApp(QApplication):
     def __init__(self, config: Config):
         super().__init__(sys.argv)
-            
+
         self.config = config
         self.processor = TradeStatsProcessor(config)
         self.alert_manager = HammerspoonAlertManager()
@@ -30,9 +40,12 @@ class TradingStatsApp(QApplication):
         self.open_entry_time_str = ""
         self.open_duration_label = None
         self.existing_fill_count = 0
+        self.profile_status_label = None
 
-        self.dialog = LogFileSelector(config.directory_path, CONST.LOG_FILENAME_PATTERN, self.window)
-        
+        self.dialog = LogFileSelector(
+            config.directory_path, CONST.LOG_FILENAME_PATTERN, self.window
+        )
+
         self.duration_timer = QTimer()
         self.duration_timer.timeout.connect(self.update_minutes)
         self.duration_timer.start(config.open_duration_refresh_ms)
@@ -41,7 +54,7 @@ class TradingStatsApp(QApplication):
         self.reload_all_data_from_source()
         self.create_stats_window()
 
-        print('Trading Stats App Initialized.')
+        print("Trading Stats App Initialized.")
 
     def reload_all_data_from_source(self):
         filepaths = self.dialog.get_selected_files()
@@ -52,7 +65,14 @@ class TradingStatsApp(QApplication):
 
     def call_last_trade(self):
         self.last_trade_count = self.processor.get_total_trades_across_all()
-        self.alert_manager.display_alert("You have called for a Last Trade. Winding down.", "ALL_ACCOUNTS", 5, 5, ConcernLevel.DEFAULT, "")
+        self.alert_manager.display_alert(
+            "You have called for a Last Trade. Winding down.",
+            "ALL_ACCOUNTS",
+            5,
+            5,
+            ConcernLevel.DEFAULT,
+            "",
+        )
 
     def create_stats_window(self):
         self.window.setWindowTitle("Trading Statistics")
@@ -63,7 +83,7 @@ class TradingStatsApp(QApplication):
 
         layout = QGridLayout(self.window)  # Set layout on the window directly
 
-        font_name = "Courier New" #Andale Mono, Menlo
+        font_name = "Courier New"  # Andale Mono, Menlo
 
         sorted_keys = sorted(list(self.processor.account_names_loaded))
         self.dropdown.addItems(sorted_keys)
@@ -73,10 +93,20 @@ class TradingStatsApp(QApplication):
         self.dropdown.setStyleSheet("background-color: gray; color: black;")
         layout.addWidget(self.dropdown, 0, 0, 1, 2)
 
+        self.profile_status_label = QLabel("")
+        status_font = QFont(font_name)
+        status_font.setPointSize(20)
+        self.profile_status_label.setFont(status_font)
+        self.profile_status_label.setAlignment(
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        )
+        layout.addWidget(self.profile_status_label, 1, 0, 1, 2)
+        layout.setRowMinimumHeight(1, 40)
+
         spacer_height = 30
         dummy_label = QLabel("")
-        layout.addWidget(dummy_label, 1, 0, 1, 2)
-        layout.setRowMinimumHeight(1, spacer_height)
+        layout.addWidget(dummy_label, 2, 0, 1, 2)
+        layout.setRowMinimumHeight(2, spacer_height)
 
         extra_metrics_checkbox = QCheckBox("Extra Metrics")
         extra_metrics_checkbox.setChecked(False)
@@ -94,9 +124,11 @@ class TradingStatsApp(QApplication):
             current_fill_count = len(fill_data)
             if current_fill_count != self.existing_fill_count:
                 self.processor.compute_trade_stats(fill_data)
-                dropdown_changed(selected_key) #re-render with the updated data.
+                dropdown_changed(selected_key)  # re-render with the updated data.
                 self.existing_fill_count = current_fill_count
-            refresh_button.setText(f'Refresh Fills [{datetime.now().strftime(CONST.DATE_TIME_FORMAT)}]')
+            refresh_button.setText(
+                f"Refresh Fills [{datetime.now().strftime(CONST.DATE_TIME_FORMAT)}]"
+            )
 
         def close_app():
             self.quit()
@@ -107,17 +139,24 @@ class TradingStatsApp(QApplication):
         def dropdown_changed(selected_key):
             for i in reversed(range(layout.count())):
                 item = layout.itemAt(i)
-                if item and item.widget() and item.widget() not in (
-                        self.dropdown, 
-                        dummy_label, 
-                        extra_metrics_checkbox, 
-                        refresh_button, 
-                        refresh_all_button, 
-                        pause_button, 
-                        close_button, 
+                if (
+                    item
+                    and item.widget()
+                    and item.widget()
+                    not in (
+                        self.dropdown,
+                        self.profile_status_label,  # never delete the status label; PyQt references break otherwise
+                        dummy_label,
+                        extra_metrics_checkbox,
+                        refresh_button,
+                        refresh_all_button,
+                        pause_button,
+                        close_button,
                         select_logfile_button,
                         call_last_trade_button,
-                        show_trades_button):
+                        show_trades_button,
+                    )
+                ):
                     item.widget().deleteLater()
                     layout.removeItem(item)
 
@@ -125,7 +164,10 @@ class TradingStatsApp(QApplication):
             row_index = 2
             for stat in selected_stats:
                 for key, value_color in stat.items():
-                    if not extra_metrics_checkbox.isChecked() and key in MetricNames.get_extra_metric_names(): # Check if key should be excluded.
+                    if (
+                        not extra_metrics_checkbox.isChecked()
+                        and key in MetricNames.get_extra_metric_names()
+                    ):  # Check if key should be excluded.
                         continue
                     if isinstance(key, str) and not key:
                         layout.setRowMinimumHeight(row_index, 20)
@@ -133,18 +175,28 @@ class TradingStatsApp(QApplication):
                     else:
                         if key == MetricNames.OPEN_ENTRY:
                             self.open_entry_time_str = str(value_color[0])
-                            
+
                         key_label = QLabel(key)
-                        key_label.setStyleSheet("border: 1px solid black; color: white;")
-                        key_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+                        key_label.setStyleSheet(
+                            "border: 1px solid black; color: white;"
+                        )
+                        key_label.setAlignment(
+                            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+                        )
                         font = QFont(font_name)
                         font.setPointSize(27)
                         key_label.setFont(font)
                         layout.addWidget(key_label, row_index, 0)
 
                         value_label = QLabel(str(value_color[0]))
-                        color = value_color[1] if len(value_color) > 1 else ConcernLevel.DEFAULT.get_color()
-                        value_label.setStyleSheet(f"border: 1px solid black; color: {color};")
+                        color = (
+                            value_color[1]
+                            if len(value_color) > 1
+                            else ConcernLevel.DEFAULT.get_color()
+                        )
+                        value_label.setStyleSheet(
+                            f"border: 1px solid black; color: {color};"
+                        )
                         font = QFont(font_name)
                         font.setPointSize(27)
                         value_label.setFont(font)
@@ -156,58 +208,78 @@ class TradingStatsApp(QApplication):
                         row_index += 1
 
             self.update_minutes()
-            
+
             # handle alerts and blocks
-            if hasattr(self, 'last_trade_count'):
+            if hasattr(self, "last_trade_count"):
                 new_total_tradecount = self.processor.get_total_trades_across_all()
-                if (new_total_tradecount > self.last_trade_count):
+                if new_total_tradecount > self.last_trade_count:
                     last_trade_alert_duration_secs = 300
                     last_trade_alert_min_interval_secs = 300
                     self.alert_manager.display_alert(
-                        "You have completed your Last Trade. Well done.", 
-                        "ALL_ACCOUNTS", 
-                        last_trade_alert_duration_secs, 
-                        last_trade_alert_min_interval_secs, 
-                        ConcernLevel.OK, 
-                        "")
+                        "You have completed your Last Trade. Well done.",
+                        "ALL_ACCOUNTS",
+                        last_trade_alert_duration_secs,
+                        last_trade_alert_min_interval_secs,
+                        ConcernLevel.OK,
+                        "",
+                    )
                     self.alert_manager.trigger_event(
-                        "block-app", 
-                        {"app_name": config.block_app_name, "duration": last_trade_alert_duration_secs},
-                        last_trade_alert_min_interval_secs)
-                    return 
+                        "block-app",
+                        {
+                            "app_name": config.block_app_name,
+                            "duration": last_trade_alert_duration_secs,
+                        },
+                        last_trade_alert_min_interval_secs,
+                    )
+                    return
 
             account_name = selected_key
             if account_name in self.processor.account_trading_alerts:
                 selected_alerts = self.processor.account_trading_alerts[account_name]
                 if len(selected_alerts) > 0:
-                    # check first if there have been new trades since last alert
                     new_tradecount = 0
                     for item in selected_stats:
                         if MetricNames.TRADES in item:
                             new_tradecount = int(item[MetricNames.TRADES][0])
 
-                    old_tradecount = 0
-                    if account_name in self.account_tradecount_on_recent_alert:
-                        old_tradecount = self.account_tradecount_on_recent_alert[account_name]                        
+                    old_tradecount = self.account_tradecount_on_recent_alert.get(
+                        account_name, 0
+                    )
 
                     if new_tradecount != old_tradecount:
                         concernLevel = ConcernLevel.DEFAULT
                         for alert in selected_alerts:
                             if config.alert_enabled:
-                                self.alert_manager.display_alert(alert.message, alert.account, alert.duration_secs, alert.min_interval_secs, alert.level, alert.extra_msg)
+                                self.alert_manager.display_alert(
+                                    alert.message,
+                                    alert.account,
+                                    alert.duration_secs,
+                                    alert.min_interval_secs,
+                                    alert.level,
+                                    alert.extra_msg,
+                                )
                             concernLevel = max(concernLevel, alert.level)
 
-                        if (config.block_app_on_critical_alerts):
-                            if concernLevel >= ConcernLevel.CAUTION:
-                                self.alert_manager.trigger_event(
-                                    "block-app", 
-                                    {"app_name": config.block_app_name, "duration": config.get_alert_duration(concernLevel)}, # sync duration of both block and alert 
-                                    config.get_min_interval_secs(concernLevel)) # sync quiet period of both block and alert
-                        self.account_tradecount_on_recent_alert[account_name] = new_tradecount
+                        if (
+                            config.block_app_on_critical_alerts
+                            and concernLevel >= ConcernLevel.CAUTION
+                        ):
+                            self.alert_manager.trigger_event(
+                                "block-app",
+                                {
+                                    "app_name": config.block_app_name,
+                                    "duration": config.get_alert_duration(concernLevel),
+                                },  # sync duration of both block and alert
+                                config.get_min_interval_secs(concernLevel),
+                            )
+                        self.account_tradecount_on_recent_alert[account_name] = (
+                            new_tradecount
+                        )
 
         self.dropdown.currentTextChanged.connect(dropdown_changed)
         self.dropdown.setCurrentText(CONST.SELECT_ACCOUNT)
-        
+        self.update_profile_status_label()
+
         def checkbox_changed(state):
             selected_key = self.dropdown.currentText()
             dropdown_changed(selected_key)
@@ -233,6 +305,7 @@ class TradingStatsApp(QApplication):
                     self.dropdown.setCurrentText(CONST.SELECT_ACCOUNT)
                     dropdown_changed(CONST.SELECT_ACCOUNT)
             self.dropdown.currentTextChanged.connect(dropdown_changed)
+            self.update_profile_status_label()
 
         refresh_all_button.clicked.connect(refresh_all)
 
@@ -243,15 +316,19 @@ class TradingStatsApp(QApplication):
                 new_file_selection = self.dialog.get_selected_files()
                 if Counter(old_file_selection) != Counter(new_file_selection):
                     refresh_all()
-                    
+
         select_logfile_button.clicked.connect(select_log_files)
         call_last_trade_button.clicked.connect(self.call_last_trade)
 
         def open_trades_window():
             account_name = self.dropdown.currentText()
             if account_name in self.processor.account_trade_groups.keys():
-                selected_trade_groups = self.processor.account_trade_groups[account_name]
-                trade_group_dialog = TradeGroupDisplay(selected_trade_groups, self.window)
+                selected_trade_groups = self.processor.account_trade_groups[
+                    account_name
+                ]
+                trade_group_dialog = TradeGroupDisplay(
+                    selected_trade_groups, self.window
+                )
                 trade_group_dialog.show()
 
         show_trades_button.clicked.connect(open_trades_window)
@@ -276,16 +353,65 @@ class TradingStatsApp(QApplication):
         close_button.setStyleSheet(button_style)
         show_trades_button.setStyleSheet(button_style)
 
-        button_row_index_start = 44 # fixed so we don't have to window adjust when refreshing and some accounts have no fills (and therefore no stats)
-        layout.addWidget(extra_metrics_checkbox, button_row_index_start, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(call_last_trade_button, button_row_index_start + 1, 0, 1, 1, alignment=Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(show_trades_button, button_row_index_start + 1, 1, 1, 1, alignment=Qt.AlignmentFlag.AlignCenter)
+        button_row_index_start = 44  # fixed so we don't have to window adjust when refreshing and some accounts have no fills (and therefore no stats)
+        layout.addWidget(
+            extra_metrics_checkbox,
+            button_row_index_start,
+            0,
+            1,
+            2,
+            alignment=Qt.AlignmentFlag.AlignCenter,
+        )
+        layout.addWidget(
+            call_last_trade_button,
+            button_row_index_start + 1,
+            0,
+            1,
+            1,
+            alignment=Qt.AlignmentFlag.AlignCenter,
+        )
+        layout.addWidget(
+            show_trades_button,
+            button_row_index_start + 1,
+            1,
+            1,
+            1,
+            alignment=Qt.AlignmentFlag.AlignCenter,
+        )
 
-        layout.addWidget(select_logfile_button, button_row_index_start + 2, 0, 1, 1, alignment=Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(refresh_all_button, button_row_index_start + 2, 1, 1, 1, alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(
+            select_logfile_button,
+            button_row_index_start + 2,
+            0,
+            1,
+            1,
+            alignment=Qt.AlignmentFlag.AlignCenter,
+        )
+        layout.addWidget(
+            refresh_all_button,
+            button_row_index_start + 2,
+            1,
+            1,
+            1,
+            alignment=Qt.AlignmentFlag.AlignCenter,
+        )
 
-        layout.addWidget(refresh_button, button_row_index_start + 3, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(close_button, button_row_index_start + 4, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(
+            refresh_button,
+            button_row_index_start + 3,
+            0,
+            1,
+            2,
+            alignment=Qt.AlignmentFlag.AlignCenter,
+        )
+        layout.addWidget(
+            close_button,
+            button_row_index_start + 4,
+            0,
+            1,
+            2,
+            alignment=Qt.AlignmentFlag.AlignCenter,
+        )
 
         self.window.adjustSize()
         self.window.show()
@@ -294,15 +420,45 @@ class TradingStatsApp(QApplication):
         self.timer.timeout.connect(refresh_data)
         self.timer.start(config.auto_refresh_ms)
 
+    def update_profile_status_label(self):
+        if not self.profile_status_label:
+            return
+        status = self.processor.get_alert_profile_status()
+        text = f"Profile: {status.get('profile', 'unknown')} ({status.get('source', 'unknown')})"
+        if status.get("mode") != "json":
+            text = "Profile: legacy (fallback)"
+            if status.get("error"):
+                text += " – see logs"
+        style = "color: white;"
+
+        tooltip_lines = []
+        if status.get("path"):
+            tooltip_lines.append(status["path"])
+        if status.get("error"):
+            tooltip_lines.append(status["error"])
+        self.profile_status_label.setToolTip("\n".join(tooltip_lines))
+        self.profile_status_label.setText(text)
+        self.profile_status_label.setStyleSheet(style)
+
     def update_minutes(self):
         minutes = my_utils.calculate_mins(self.open_entry_time_str, datetime.now())
         if minutes != 0:
-            self.open_duration_label.setText(f'{minutes}')
+            self.open_duration_label.setText(f"{minutes}")
             caution_minutes = config.open_trade_duration_notice_mins
-            if minutes >= caution_minutes: 
-                self.open_duration_label.setStyleSheet(f"border: 1px solid black; color: yellow;")
+            if minutes >= caution_minutes:
+                self.open_duration_label.setStyleSheet(
+                    f"border: 1px solid black; color: yellow;"
+                )
                 if config.alert_enabled:
-                    self.alert_manager.display_alert(f"Trade open for > 10 mins", self.dropdown.currentText(), 5, 600, ConcernLevel.CAUTION, "")
+                    self.alert_manager.display_alert(
+                        f"Trade open for > 10 mins",
+                        self.dropdown.currentText(),
+                        5,
+                        600,
+                        ConcernLevel.CAUTION,
+                        "",
+                    )
+
 
 if __name__ == "__main__":
     config = Config()

@@ -1,0 +1,147 @@
+{
+  "schema_version": "1.0",
+  "id": "default",
+  "name": "Default Risk Controls",
+  "description": "Baseline guardrails for ES scalping",
+  "metadata": {
+    "created_by": "ryan",
+    "created_at": "2024-06-01T00:00:00Z",
+    "source": "repo"
+  },
+  "context_fields": {
+    "required": [
+      "completed_trades",
+      "total_profit_or_loss",
+      "profit_factor",
+      "win_rate",
+      "directional_bias_extramsg",
+      "streak_tracker.streak",
+      "loss_max_size",
+      "current_drawdown",
+      "loss_scaled_count",
+      "open_position_size",
+      "win_avg_secs_seconds",
+      "loss_avg_secs_seconds",
+      "win_avg_secs_vs_loss_avg_secs"
+    ]
+  },
+  "conditions": [
+    {
+      "id": "trade-count-max",
+      "group": "trade_count",
+      "label": "Trade Count Limit",
+      "when": "completed_trades >= 30",
+      "level": "CRITICAL",
+      "message": "Stop. Maximum trades for the day reached.",
+      "extra_message": "{completed_trades}",
+      "throttle_secs": 0,
+      "enabled": true
+    },
+    {
+      "id": "trade-count-goal",
+      "group": "trade_count",
+      "label": "Trade Count Goal",
+      "when": "completed_trades >= 20",
+      "level": "WARNING",
+      "message": "Wind down. You've reached your trade count goal.",
+      "extra_message": "{completed_trades}",
+      "enabled": true
+    },
+    {
+      "id": "trade-count-goal-positive",
+      "group": "trade_count",
+      "label": "Trade Count Goal +",
+      "when": "completed_trades >= 20 and total_profit_or_loss > 0",
+      "level": "OK",
+      "message": "Wind down. You've reached your trade count goal.",
+      "extra_message": "{completed_trades}",
+      "enabled": true
+    },
+    {
+      "id": "pnl-down-critical",
+      "group": "profit_loss",
+      "label": "P&L Drawdown Critical",
+      "when": "total_profit_or_loss < -2100",
+      "level": "CRITICAL",
+      "message": "Stop. Protect your capital.",
+      "extra_message": "{total_profit_or_loss:+,}",
+      "enabled": true
+    },
+    {
+      "id": "pnl-down-warning",
+      "group": "profit_loss",
+      "label": "P&L Drawdown Warning",
+      "when": "total_profit_or_loss < -1400",
+      "level": "WARNING",
+      "message": "Pause. Reset first, then recover.",
+      "extra_message": "{total_profit_or_loss:+,}",
+      "enabled": true
+    },
+    {
+      "id": "winrate-low-warning",
+      "group": "win_rate",
+      "label": "Low Win Rate",
+      "when": "win_rate <= 25 and profit_factor < 1.0 and completed_trades >= 10",
+      "level": "WARNING",
+      "message": "Reset. Win Rate very low.",
+      "extra_message": "{directional_bias_extramsg}",
+      "enabled": true
+    },
+    {
+      "id": "profit-factor-low",
+      "group": "profit_factor",
+      "label": "Low Profit Factor",
+      "when": "profit_factor < 1.5 and completed_trades >= 5",
+      "level": "CAUTION",
+      "message": "Slow down. Profit Factor low.",
+      "extra_message": "{directional_bias_extramsg}",
+      "enabled": true
+    },
+    {
+      "id": "losing-streak-critical",
+      "group": "losing_streak",
+      "label": "Deep Losing Streak",
+      "when": "streak_tracker.streak <= -7",
+      "level": "CRITICAL",
+      "message": "Stop now. Protect the version of you that trades well tomorrow.",
+      "enabled": true
+    },
+    {
+      "id": "losing-streak-warning",
+      "group": "losing_streak",
+      "label": "Losing Streak Warning",
+      "when": "streak_tracker.streak <= -4",
+      "level": "WARNING",
+      "message": "Stop. Follow Reset plan.",
+      "enabled": true
+    },
+    {
+      "id": "losing-streak-caution",
+      "group": "losing_streak",
+      "label": "Consecutive Losses",
+      "when": "streak_tracker.streak <= -2",
+      "level": "CAUTION",
+      "message": "Slow down. Consecutive losses.",
+      "enabled": true
+    },
+    {
+      "id": "drawdown-critical",
+      "group": "drawdown",
+      "label": "Max Drawdown",
+      "when": "current_drawdown < -3000",
+      "level": "CRITICAL",
+      "message": "Stop now. Maximum drawdown.",
+      "extra_message": "{current_drawdown:+,}",
+      "enabled": true
+    }
+  ],
+  "color_rules": [
+    {
+      "metric": "win_rate",
+      "rules": [
+        { "when": "win_rate <= 25", "color": "#b00020" },
+        { "when": "win_rate <= 40", "color": "#f9a825" }
+      ]
+    }
+  ]
+}

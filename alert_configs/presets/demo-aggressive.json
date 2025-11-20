@@ -1,0 +1,71 @@
+{
+  "schema_version": "1.0",
+  "id": "demo-aggressive",
+  "name": "Aggressive Profile",
+  "description": "Higher tolerance exemplifying aggressive trading",
+  "metadata": {
+    "created_by": "ryan",
+    "created_at": "2024-06-02T00:00:00Z",
+    "source": "repo"
+  },
+  "context_fields": {
+    "required": [
+      "completed_trades",
+      "total_profit_or_loss",
+      "profit_factor",
+      "win_rate",
+      "directional_bias_extramsg",
+      "streak_tracker.streak",
+      "loss_max_size",
+      "current_drawdown",
+      "loss_scaled_count",
+      "open_position_size",
+      "win_avg_secs_seconds",
+      "loss_avg_secs_seconds",
+      "win_avg_secs_vs_loss_avg_secs"
+    ]
+  },
+  "conditions": [
+    {
+      "id": "trade-count-max",
+      "group": "trade_count",
+      "label": "Trade Count Limit",
+      "when": "completed_trades >= 40",
+      "level": "CRITICAL",
+      "message": "Stop. Maximum trades for the day reached.",
+      "extra_message": "{completed_trades}",
+      "throttle_secs": 0,
+      "enabled": true
+    },
+    {
+      "id": "pnl-down-warning",
+      "group": "profit_loss",
+      "label": "P&L Warning",
+      "when": "total_profit_or_loss < -2000",
+      "level": "WARNING",
+      "message": "Pause. Reset first, then recover.",
+      "extra_message": "{total_profit_or_loss:+,}",
+      "enabled": true
+    },
+    {
+      "id": "winrate-warning",
+      "group": "win_rate",
+      "label": "Win Rate Warning",
+      "when": "win_rate <= 35 and completed_trades >= 10",
+      "level": "WARNING",
+      "message": "Slow down. Win Rate low.",
+      "extra_message": "{directional_bias_extramsg}",
+      "enabled": true
+    },
+    {
+      "id": "open-position-size-caution",
+      "group": "simple_conditions",
+      "label": "Large Open Position",
+      "when": "abs(open_position_size) >= 5",
+      "level": "CAUTION",
+      "message": "",
+      "enabled": true
+    }
+  ],
+  "color_rules": []
+}

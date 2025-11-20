@@ -181,3 +181,6 @@ profile_output.out
 profile.html
 profile.json
 config.local.ini
+alert_configs/user/
+alert_configs/backups/
+.config/trading-stats-tracker/alert_configs/
