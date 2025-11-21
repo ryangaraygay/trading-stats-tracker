@@ -24,3 +24,9 @@ all: #install lint test
 
 validate_alerts:
 	python manage_alert_configs.py validate
+
+export_mw_fills:
+	python -m scripts.export_mw_fills $(ARGS)
+
+bridge_trades_bars:
+	python -m scripts.bridge_trades_bars $(ARGS)

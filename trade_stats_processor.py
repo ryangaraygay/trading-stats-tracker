@@ -12,6 +12,7 @@ from concern_level import ConcernLevel
 from config import Config
 from constants import CONST
 from metrics_names import MetricNames
+from motivewave_parser import parse_fills
 from trade import Trade
 from trade_analyzer import TradeAnalyzer
 from trade_group import TradeGroup
@@ -81,36 +82,7 @@ class TradeStatsProcessor:
         self.account_names_loaded = sorted(list(account_names))
 
     def get_fills(self, file_paths):
-        unique_trades_dict = {}
-        for file_path in file_paths:
-            pattern = rf"OrderDirectory::orderFilled\(\) order: ID: (\S+) (\S+) (\S+)\.CME.*(Filled BUY|Filled SELL).*Qty:(\d+\.\d+).*Last Fill Time:\s*(\d{{2}}/\d{{2}}/\d{{4}} \d{{1,2}}:\d{{2}} [AP]M).*fill price: (\d+\.\d+)"
-            with open(file_path, "r") as file:
-                for line in file:
-                    match = re.search(pattern, line)
-                    if match:
-                        order_id = int(
-                            re.sub(r"[^0-9]", "", match.group(1))
-                        )  # SIM-dd (we need this for ordering since fill_time has no second value and so inaccurate)
-                        account_name = match.group(2)
-                        contract_symbol = match.group(3)
-                        order_type = match.group(4)
-                        quantity = float(match.group(5))
-                        fill_time_str = match.group(6)
-                        fill_price = float(match.group(7))
-                        fill_time = datetime.strptime(
-                            fill_time_str, "%m/%d/%Y %I:%M %p"
-                        )
-                        unique_trades_dict[account_name, order_id] = Trade(
-                            account_name,
-                            order_id,
-                            order_type,
-                            contract_symbol,
-                            quantity,
-                            fill_price,
-                            fill_time,
-                        )
-
-        fill_data = list(unique_trades_dict.values())
+        fill_data = parse_fills(file_paths)
         if len(fill_data) == 0:
             print("No Fills Found")
 

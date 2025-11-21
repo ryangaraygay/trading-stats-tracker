@@ -1,6 +1,12 @@
 # trading-stats-tracker
 get more frequent trading stats by reading MotiveWave logs
 
+# MotiveWave fills export (CLI)
+- Export raw fills to partitioned JSONL (for analysis without GUI parsing): `make export_mw_fills ARGS="--latest"` (defaults to iCloud MotiveWave Logs path).
+- Pass multiple files/dirs: `python -m scripts.export_mw_fills --input /path/to/log1.log --input /path/to/logdir`.
+- Grab only the newest session: add `--latest` (mtime). Incremental runs dedupe by digest and track a manifest in `data/mw_fills/state.json`.
+- Timestamps are parsed as local time (matching current GUI behavior).
+
 # Alert configuration
 The alert system now reads from JSON profiles instead of hard-coded thresholds. Config files live in `alert_configs/` and are organized as:
 
